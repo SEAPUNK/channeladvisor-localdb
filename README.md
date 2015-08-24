@@ -25,12 +25,12 @@ ldb = new CALDB do
     client: client
     logger: logger
 
-ldb.on 'error', (err) ->
-    throw err
+ldb.on 'error', (info) ->
+    console.log util.inspect info
+    throw info.error
 
-ldb.on 'progress', (status) ->
-    console.log 'ldb progress'
-    console.log util.inspect status
+ldb.on 'update-progress', (info) ->
+    console.log util.inspect info
 
 ldb.start!
 
