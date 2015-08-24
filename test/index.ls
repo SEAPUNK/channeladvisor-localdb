@@ -1,13 +1,13 @@
 require! 'chai'
-
-{assert, expect} = chai
-
-chai.should!
-
 require! '../src/index':CALDB
 
-describe \CALDB, ->
-    describe \#construct, ->
+{assert, expect} = chai
+chai.should!
+
+var cal
+
+describe 'CALDB', ->
+    describe '#construct(opts)', ->
         specify 'should NOT construct without any parameters', (done) ->
             try
                 new CALDB
@@ -43,6 +43,26 @@ describe \CALDB, ->
                 client: {}
             db.getLogger! .info 'test'
 
-        #TODO: Test if CALDB's dummy logger is actually a dummy.
+        # TODO: Test if CALDB's dummy logger is actually a dummy.
         #   We need to somehow monitor the console, and see if it
         #   outputs a string we don't want it to
+    describe 'events:', ->
+        specify 'EventEmitter instance functions should exist in the CALDB instance', ->
+            cal := new CALDB do
+                # TODO: Fake DB, fake SOAP server for the client (???)
+                db: {}
+                client: {}
+
+            # some sample functions from the EventEmitter API
+            names = [
+                'on'
+                'once'
+                'emit'
+                'removeListener'
+                'removeAllListeners'
+            ]
+
+            for name in names
+                if typeof cal[name] is not "function"
+                    throw new Error "#{name} is not a function in CALDB, \
+                        got #{typeof cal[name]}"
