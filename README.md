@@ -32,7 +32,7 @@ ldb.on 'progress', (status) ->
     console.log 'ldb progress'
     console.log util.inspect status
 
-ldb.start()
+ldb.start!
 
 ```
 
@@ -41,9 +41,9 @@ ldb.start()
 Creates new instance of the ChannelAdvisor localDB
 
 * `opts`: `object`
-* * `db`: [`node-mysql`](https://github.com/felixge/node-mysql/) createConnection options
-* * `client`: instance of the initialized [`node-channeladvisor2`](https://github.com/SEAPUNK/noed-channeladvisor2) client
-* * `logger`: a [`winston`](https://github.com/winstonjs/winston) logger instance, for if you want to log
+    * `db`: [`node-mysql`](https://github.com/felixge/node-mysql/) createConnection options
+    * `client`: instance of the initialized [`node-channeladvisor2`](https://github.com/SEAPUNK/noed-channeladvisor2) client
+    * `logger`: a [`winston`](https://github.com/winstonjs/winston) logger instance, for if you want to log
 
 ###`CALDB events`
 
