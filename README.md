@@ -1,6 +1,8 @@
 channeladvisor-localdb
 ===
 
+library to create a local database of inventory items from channeladvisor
+
 install
 ---
 
@@ -47,7 +49,7 @@ Creates new instance of the ChannelAdvisor localDB
 
 ###`CALDB events`
 
-CALDB is an instance of the [EventEmitter](https://nodejs.org/api/events.html#events_class_events_eventemitter) class.
+CALDB instances are also instances of the [EventEmitter](https://nodejs.org/api/events.html#events_class_events_eventemitter) class.
 
 List of events are [here](#events)
 
