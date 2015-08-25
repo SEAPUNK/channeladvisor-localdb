@@ -24,6 +24,35 @@ export select-incomplete-catalog-run = "
                 `event` = 'done'
             ORDER BY `date` DESC
             LIMIT 1
-        ), '1500-01-01');
+        ), '1500-01-01')
 "
 
+# Selects the last update checkpoint date.
+export select-last-update-checkpoint-date = "
+    SELECT `date`
+    FROM `run_log`
+    WHERE
+        `updater` = 'updates'
+    AND
+        `event` = 'checkpoint'
+    ORDER BY `date` DESC
+    LIMIT 1
+"
+
+export insert-run-log = "
+    INSERT INTO run_log (
+        updater,
+        event,
+        date,
+        comment,
+        page_id,
+        date_from
+    ) VALUES (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?
+    )
+"

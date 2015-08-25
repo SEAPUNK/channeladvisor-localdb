@@ -1,17 +1,23 @@
-require! <[ winston mysql updaters.ls queries.ls ]>
+require! <[
+    winston mysql
+    ./updaters ./queries
+]>
 
 {EventEmitter} = require 'events'
 
 {
+    UpdatesUpdateInfo
+    CatalogUpdateInfo
     UpdateStartInfo
     UpdateStopInfo
     UpdateDoneInfo
-    ProgressInfo
+    UpdateProgressInfo
     ErrorInfo
 } = require './info-objects/'
 
 class CALDB extends EventEmitter
     ({@dbopts, @client, @logger}) ->
+        super!
         @set-logger!
 
     set-logger: ->
@@ -37,18 +43,17 @@ class CALDB extends EventEmitter
         @db = mysql.create-connection @dbopts
         err <~ @db.connect
         if err
-            @emit 'error', new ErrorInfo do
+            return @emit 'error', new ErrorInfo do
                 error: err
                 message: "Could not connect to db"
                 stage: "pre-update-checks"
                 fatal: true
-            return
 
         # Try a database query that should work.
         #   In this case, select items from the run log.
         err <~ @db.query "SELECT * FROM run_log LIMIT 10"
         if err
-            @emit 'error', new ErrorInfo do
+            return @emit 'error', new ErrorInfo do
                 error: err
                 message: "Could not run a test query on DB; \
                     has it been initialized?"
@@ -59,13 +64,12 @@ class CALDB extends EventEmitter
         #   We're going to check by seeing if
         #   a test SOAP method is available.
         if not @client?.AdminService?.Ping?
-            @emit 'error', new ErrorInfo do
+            return @emit 'error', new ErrorInfo do
                 error: new Error "channeladvisor2 client \
                     non-existent/non-initialized"
                 message: "Client is not initialized"
                 stage: "pre-update-checks"
                 fatal: true
-            return
 
 
     run-updater: (manual, comment) ->
@@ -83,8 +87,9 @@ class CALDB extends EventEmitter
         err, rows <~ @db.query queries.select-limited-logs
         if err
             return @emit 'error', new ErrorInfo do
-                error: new Error err
-                message: "could not run database query, at run-updater,select-limited-logs"
+                error: err
+                message: "could not run database query, \
+                    at run-updater,select-limited-logs"
                 stage: "determine-updater"
                 fatal: true
         if rows.length is 0
@@ -96,8 +101,9 @@ class CALDB extends EventEmitter
         err, rows <~ @db.query queries.select-incomplete-catalog-run
         if err
             return @emit 'error', new ErrorInfo do
-                error: new Error err
-                message: "could not run database query, at run-updater,select-incomplete-catalog-run"
+                error: err
+                message: "could not run database query, \
+                    at run-updater,select-incomplete-catalog-run"
                 stage: "determine-updater"
                 fatal: true
         if rows.length is not 0
