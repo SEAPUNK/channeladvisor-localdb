@@ -24,7 +24,8 @@
     "grunt-livescript": "^0.5.4",
     "grunt-mocha-test": "^0.12.7",
     "livescript": "^1.4.0",
-    "mocha": "^2.2.5"
+    "mocha": "^2.2.5",
+    "sinon": "^1.16.1"
   },
   "dependencies": {
     "async": "^1.4.2",

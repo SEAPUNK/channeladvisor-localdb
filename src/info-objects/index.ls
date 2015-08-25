@@ -7,4 +7,5 @@ export class ErrorInfo
         @error
         @msg
         @stage
+        @fatal
     }) ->
