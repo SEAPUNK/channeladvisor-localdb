@@ -38,7 +38,7 @@ export select-last-update-checkpoint-date = "
     ORDER BY `date` DESC
     LIMIT 1
 "
-
+# Inserts a run log entry.
 export insert-run-log = "
     INSERT INTO run_log (
         updater,
