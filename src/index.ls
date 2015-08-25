@@ -1,4 +1,4 @@
-require! <[ winston mysql ]>
+require! <[ winston mysql updaters.ls queries.ls ]>
 
 {EventEmitter} = require 'events'
 
@@ -23,17 +23,19 @@ class CALDB extends EventEmitter
         new (winston.Logger) do
             transports: []
 
-    start: ->
-        set-timeout @start-updater
+    start: (manual, comment) ->
+        set-timeout ~>
+            @start-updater manual, comment
 
-    start-updater: ->
+    start-updater: (manual, commment) ->
         if not @initialized
-            @run-checks @run-updater
+            @run-checks ~>
+                @run-updater manual, comment
 
     run-checks: (callback) ->
         # First, check if the database connection will work
-        @dbconn = mysql.create-connection @dbopts
-        err <~ connection.connect
+        @db = mysql.create-connection @dbopts
+        err <~ @db.connect
         if err
             @emit 'error', new ErrorInfo do
                 error: err
@@ -44,7 +46,7 @@ class CALDB extends EventEmitter
 
         # Try a database query that should work.
         #   In this case, select items from the run log.
-        err <~ connection.query "SELECT * FROM run_log LIMIT 10"
+        err <~ @db.query "SELECT * FROM run_log LIMIT 10"
         if err
             @emit 'error', new ErrorInfo do
                 error: err
@@ -66,7 +68,44 @@ class CALDB extends EventEmitter
             return
 
 
-    run-updater: ->
+    run-updater: (manual, comment) ->
+        # First, check to see what kind of update
+        #   we need to run.
 
+        # Check to see if we're doing a "manual" catalog update.
+        if manual is true
+            return set-timeout ~>
+                updaters.catalog @
+
+        # Check if there is anything in the run_log.
+        #   If there isn't, then run catalog, since this is
+        #   A fresh installation.
+        err, rows <~ @db.query queries.select-limited-logs
+        if err
+            return @emit 'error', new ErrorInfo do
+                error: new Error err
+                message: "could not run database query, at run-updater,select-limited-logs"
+                stage: "determine-updater"
+                fatal: true
+        if rows.length is 0
+            return set-timeout ~>
+                updaters.catalog @
+
+        # Now, check if there has been an incomplete catalog update.
+        #   If there is an item, then run catalog.
+        err, rows <~ @db.query queries.select-incomplete-catalog-run
+        if err
+            return @emit 'error', new ErrorInfo do
+                error: new Error err
+                message: "could not run database query, at run-updater,select-incomplete-catalog-run"
+                stage: "determine-updater"
+                fatal: true
+        if rows.length is not 0
+            return set-timeout ~>
+                updaters.catalog @
+
+        # Else, we can just run 'updates'.
+        return set-timeout ~>
+            updater.updates @
 
 module.exports = CALDB
