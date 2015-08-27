@@ -26,6 +26,7 @@ ldb = new CALDB do
         database: 'channeladvisor'
     client: client
     logger: logger
+    account: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
 
 ldb.on 'error', (info) ->
     console.log util.inspect info
@@ -46,6 +47,7 @@ Creates new instance of the ChannelAdvisor localDB
     * `dbopts`: [`node-mysql`](https://github.com/felixge/node-mysql/) createConnection options
     * `client`: instance of the initialized [`node-channeladvisor2`](https://github.com/SEAPUNK/node-channeladvisor2) client
     * `logger`: a [`winston`](https://github.com/winstonjs/winston) logger instance, for if you want to log
+    * `account`: the account ID for the database (format is `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
 
 ###`CALDB events`
 
@@ -53,9 +55,12 @@ CALDB instances are also instances of the [EventEmitter](https://nodejs.org/api/
 
 List of events are [here](#events)
 
-###`CALDB#start()`
+###`CALDB#start(manual, comment)`
 
 Starts DB updater. Async function, runs in the background.
+
+* `manual`: Whether to force a catalog update. ***This truncates the existing inventory database!***
+* `comment`: Meta comment to store in the run log
 
 ###`CALDB#stop(callback)`
 

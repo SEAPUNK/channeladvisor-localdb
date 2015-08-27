@@ -2,6 +2,35 @@
     See docs/info-object.md for info
 */
 
+# Order matters with class definitions:
+#   base classes
+#   non-exported extended classes
+#   exported extended classes
+
+# base classes
+class UpdateContinueInfo
+    ({
+        @date-to
+        @page
+    }) ->
+        # no superclass
+
+class UpdateStatisticsInfo
+    ({
+        @added
+        @changed
+        @deleted
+    }) ->
+        @processed = @added + @changed + @deleted
+
+# non-exported extended classes
+class GenericUpdateInfo extends UpdateContinueInfo
+    ({
+        @date-from
+    }) ->
+        super ...
+
+# exported extended classes
 export class UpdatesUpdateInfo extends GenericUpdateInfo
     ->
         super ...
@@ -58,26 +87,3 @@ export class ErrorInfo
         @comment
     }) ->
         # no superclass
-
-
-class GenericUpdateInfo extends UpdateContinueInfo
-    ({
-        @date-from
-    }) ->
-        super ...
-
-class UpdateContinueInfo
-    ({
-        @date-to
-        @page
-    }) ->
-        # no superclass
-
-
-class UpdateStatistics
-    ({
-        @added
-        @changed
-        @deleted
-    }) ->
-        @processed = @added + @changed + @deleted
