@@ -4,6 +4,9 @@ require! <[
 ]>
 
 # TODO: for queries, shall there be a hard limit to run FROM catalog reset?
+# TODO: clean up code; use sequelize?
+# TODO: unless we're using sequelize, we need to add set* functions.
+# TODO: a getter for the items
 
 {EventEmitter} = require 'events'
 
@@ -17,10 +20,37 @@ require! <[
     ErrorInfo
 } = require './info-objects/'
 
+
+Debugger = ({@log, @namespace, @previous = null}) !->
+    this$ = this
+
+    this.debug = (message) ->
+        this$.log this$.namespace + ": " + message
+
+    this.debug.pop = ->
+        if not this$.previous?
+            throw new Error "no more namespaces to revert to"
+        return this$.previous.debug
+
+    this.debug.push = (subnamespace) ->
+        dbg = new Debugger do
+            log: this$.log
+            namespace: "#{this$.namespace}/#{subnamespace}"
+            previous: this$
+        return dbg.debug
+
 class CALDB extends EventEmitter
     ({@account, @dbopts, @client, @logger}) ->
         super!
         @set-logger!
+        @items-added = 0
+        @items-changed = 0
+        @items-deleted = 0
+
+        @debugger = new Debugger do
+            log: @logger~debug
+            namespace: 'caldb'
+        @debug = @debugger.debug
 
     set-logger: ->
         @logger ?= @make-dummy-logger!
@@ -31,22 +61,30 @@ class CALDB extends EventEmitter
         new (winston.Logger) do
             transports: []
 
+
+    #######################################################################
+
+
     start: (manual, comment) ->
-        @logger.debug "caldb - run: start"
+        debug = @debug.push "start"
+
+        debug "called"
         set-timeout ~>
             @start-updater manual, comment
 
     start-updater: (manual, comment) ->
-        @logger.debug "caldb - run: start-updater"
+        debug = @debug.push "start-updater"
+
+        debug "called"
         if not @initialized
             @run-checks ~>
                 @run-updater manual, comment
 
     run-checks: (callback) ->
-        @logger.debug "caldb - run: run-checks"
+        debug = @debug.push "run-checks"
 
+        debug "called"
         # First, check if the database connection will work
-        @logger.debug "caldb - run-checks: db connect"
         @dbopts.multiple-statements = true
         @db = mysql.create-connection @dbopts
         err <~ @db.connect
@@ -59,7 +97,7 @@ class CALDB extends EventEmitter
 
         # Try a database query that should work.
         #   In this case, select items from the run log.
-        @logger.debug "caldb - run-checks: try db query"
+        debug "try db query"
         err <~ @db.query "SELECT * FROM run_log LIMIT 10"
         if err
             return @emit 'error', new ErrorInfo do
@@ -72,7 +110,7 @@ class CALDB extends EventEmitter
         # Then, check the client. Is it initialized?
         #   We're going to check by seeing if
         #   a test SOAP method is available.
-        @logger.debug "caldb - run-checks: check client init"
+        debug "check client init"
         if not @client?.AdminService?.Ping?
             return @emit 'error', new ErrorInfo do
                 error: new Error "channeladvisor2 client \
@@ -83,13 +121,21 @@ class CALDB extends EventEmitter
 
         callback!
 
+    reset-counters: ->
+        @items-added := 0
+        @items-changed := 0
+        @items-deleted := 0
+
     run-updater: (manual, comment) ->
-        @logger.debug "caldb - run: run-updater"
+        debug = @debug.push "run-updater"
+
+        debug "called"
         # First, check to see what kind of update
         #   we need to run.
 
         # Check to see if we're doing a "manual" catalog update.
         if manual is yes
+            debug "is forced, calling catalog"
             return set-timeout ~>
                 updaters.catalog.call @, comment, , manual
 
@@ -105,6 +151,7 @@ class CALDB extends EventEmitter
                 stage: "determine-updater"
                 fatal: true
         if rows.length is 0
+            debug "nothing in the run log, calling catalog"
             return set-timeout ~>
                 updaters.catalog.call @, comment
 
@@ -119,11 +166,13 @@ class CALDB extends EventEmitter
                 stage: "determine-updater"
                 fatal: true
         if rows.length is not 0
+            debug "incomplete catalog update, calling catalog"
             return set-timeout ~>
                 updaters.catalog.call @, comment, rows[0].date
 
         # Else, we can just run 'updates'.
         return set-timeout ~>
+            debug "all checks seem to have passed, calling updates"
             updater.updates.call @, comment
 
 module.exports = CALDB

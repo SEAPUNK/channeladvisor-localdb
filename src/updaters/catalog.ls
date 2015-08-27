@@ -1,5 +1,6 @@
 require! <[
     ../queries
+    ../fetch-item
     async
 ]>
 
@@ -14,12 +15,16 @@ require! <[
 } = require '../info-objects/'
 
 module.exports = (comment, date-to-fetch-to, force = no) ->
-    @logger.debug "caldb/catalog: start"
+    debug = @debug.push "catalog"
+
+    debug "start"
+
+    @reset-counters!
 
     fetch = @client.InventoryService.GetFilteredInventoryItemList
 
     # Get the resume data for the catalog update, if any.
-    @logger.debug "caldb/catalog: select-catalog-resume-page"
+    debug "select-catalog-resume-page"
     err, rows <~ @db.query queries.select-catalog-resume-page
     if err
         return @emit 'error', new ErrorInfo do
@@ -45,7 +50,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
         comment := ""
 
     if force
-        @logger.debug "caldb/catalog: using force"
+        debug "using force"
         comment := comment + "Forceful update per request. \
             Existing data will be truncated."
 
@@ -54,7 +59,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
     if not date-to-fetch-to
         date-to-fetch-to := new Date
     else
-        @logger.debug "caldb/catalog: continuing catalog, #{date-to-fetch-to}"
+        debug "continuing catalog, #{date-to-fetch-to}"
         continuing := true
         comment := comment + "Continuing catalog update last \
             run on #{date-to-fetch-to.toGMTString!} from page #{current-page}."
@@ -65,7 +70,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
         (next) ~>
             # Insert a "catalog:reset" run log if we are forcing an update.
             if force
-                @logger.debug "caldb/catalog: resetting catalog"
+                debug "resetting catalog"
                 err <~ @db.query queries.insert-run-log, [
                     'catalog'
                     'reset'
@@ -87,7 +92,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
         (next) ~>
             # Reset the inventory items if we're forcing.
             if force
-                @logger.debug "caldb/catalog: truncating tables"
+                debug "truncating tables"
                 err <~ @db.query queries.truncate-inventory
                 if err
                     return @emit 'error', new ErrorInfo do
@@ -104,7 +109,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
             if continuing
                 return next!
 
-            @logger.debug "caldb/catalog: updates checkpoint"
+            debug "updates checkpoint"
             err <~ @db.query queries.insert-run-log, [
                 'updates'
                 'checkpoint'
@@ -125,7 +130,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
             return next!
         (next) ~>
             # Insert the catalog:start run log entry.
-            @logger.debug "caldb/catalog: insert catalog:start"
+            debug "insert catalog:start"
             err <~ @db.query queries.insert-run-log, [
                 'catalog'
                 'start'
@@ -144,7 +149,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                     fatal: true
 
             # emit the update-start event, then start fetching.
-            @logger.debug "caldb/catalog: emit update-start"
+            debug "emit update-start"
             @emit 'update-start', new UpdateStartInfo do
                 type: 'catalog'
                 date: start-date
@@ -174,15 +179,15 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                 void
 
             page = pages!
-            @logger.debug "caldb/catalog: initialized pages generator"
+            debug "initialized pages generator"
 
             # TODO: Make function that checks errors, and handles them
 
             async.forever do
                 (callback) ~>
                     # TODO: Get the next page.
-                    @logger.debug "caldb/catalog: fetching page #{current-page}"
-                    @logger.debug "caldb/catalog: inserting catalog:progress"
+                    debug "fetching page #{current-page}"
+                    debug "inserting catalog:progress"
                     err <~ @db.query queries.insert-run-log, [
                         'catalog'
                         'progress'
@@ -193,8 +198,18 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                     ]
                     if err then return callback err
 
+                    @emit 'update-progress', new UpdateProgressInfo do
+                            type: 'catalog'
+                            date: new Date
+                            date-started: start-date
+                            comment: ''
+                            current-page: current-page
+                            added: @items-added
+                            changed: @items-changed
+                            deleted: @items-deleted
+
                     err, result <~ fetch page.next!.value
-                    @logger.debug "caldb/catalog: fetched page"
+                    debug "fetched page"
                     if err then return callback err
 
                     result = result.GetFilteredInventoryItemListResult # ugh
@@ -210,32 +225,49 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                     data = result.ResultData.InventoryItemResponse # u g h
 
                     if data.length is 0
-                        @logger.debug "caldb/catalog: all items fetched"
+                        debug "all items fetched"
                         return callback "OKAY"
 
                     q = async.queue (item, done) ~>
                         process-individual-item.call @, item, done
 
                     q.drain = ~>
-                        @logger.debug "caldb/catalog: done processing items, fetching next page"
+                        debug "done processing items, \
+                            fetching next page"
                         callback!
 
-                    q.push data, (err) ~>
+                    q.push data, (err, sku) ~>
+                        debug = (@debug.push "catalog").push "queue"
                         if err
-                            @logger.debug "caldb/catalog/queue: got error from an item process"
+                            debug "got error from an item during processing"
                             q.kill!
                             return callback err
 
+                        # Try to get the item from the DB, and then feed it into
+                        #   the EventEmitter.
+                        err, item <~ fetch-item @db~query, sku
+                        if err
+                            debug "got error from an item during fetching"
+                            q.kill!
+                            return callback err
+
+                        @emit 'new-item', new NewItemInfo do
+                            type: 'catalog'
+                            date: new Date
+                            item: item
+                            comment: comment
+
                 (err) ~>
                     if err is not "OKAY"
-                        @logger.debug "caldb/catalog: err is NOT 'OKAY'"
+                        debug "err is NOT 'OKAY'"
                         return @emit 'error', new ErrorInfo do
                             error: err
                             message: "could not process/query items"
                             stage: "catalog:get-next-page"
                             fatal: true
 
-                    @logger.debug "caldb/catalog: EVERYTHING WENT OKAY, ALL ITEMS ARE DONE"
+                    debug "EVERYTHING WENT OKAY, \
+                        ALL ITEMS ARE DONE"
                     # TODO: Clean up.
 
     ], (err) ->
@@ -243,7 +275,9 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
 
 
 process-individual-item = (item, done) ->
-    @logger.debug "caldb/catalog/process-individual-item: inserting base data"
+    debug = (@debug.push "catalog").push "process-individual-item"
+
+    debug "inserting base data"
     err <~ @db.query queries.replace-inventory-item, [
         new Date
         item.Sku
@@ -278,8 +312,7 @@ process-individual-item = (item, done) ->
     ]
     if err then return done err
 
-    @logger.debug "caldb/catalog/process-individual-item: \
-        inserting quantity data"
+    debug "inserting quantity data"
     quan = item.Quantity
     err <~ @db.query queries.replace-inventory-quantity-data, [
         item.Sku
@@ -299,8 +332,7 @@ process-individual-item = (item, done) ->
     ]
     if err then return done err
 
-    @logger.debug "caldb/catalog/process-individual-item: \
-        inserting price data"
+    debug "inserting price data"
     pric = item.PriceInfo
     err <~ @db.query queries.replace-inventory-price-data, [
         item.Sku
@@ -314,5 +346,5 @@ process-individual-item = (item, done) ->
     ]
     if err then return done err
 
-    @logger.debug "caldb/catalog/process-individual-item: processed item"
-    done!
+    debug "processed item"
+    done null, item.Sku

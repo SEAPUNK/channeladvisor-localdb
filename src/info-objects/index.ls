@@ -74,6 +74,7 @@ export class UpdateProgressInfo extends UpdateStatisticsInfo
         @date
         @date-started
         @comment
+        @current-page
     }) ->
         @duration = @date-started - @date
         super ...

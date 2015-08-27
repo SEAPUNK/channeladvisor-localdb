@@ -30,6 +30,7 @@
   "dependencies": {
     "async": "^1.4.2",
     "mysql": "^2.9.0",
+    "sequelize": "^3.6.0",
     "winston": "^1.0.1"
   },
   "keywords": [
