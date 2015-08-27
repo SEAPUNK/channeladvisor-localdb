@@ -1,7 +1,7 @@
 # Selects all rows from the run log, limit 5.
 # Used for checking whether anything is even in the run log.
 export select-limited-logs = """
-    SELECT * FROM run_log LIMIT 5
+    SELECT * FROM `run_log` LIMIT 5
 """
 
 # Selects ID of the catalog run that hasn't been completed.
@@ -40,15 +40,15 @@ export select-last-update-checkpoint-date = """
     ORDER BY `date` DESC
     LIMIT 1
 """
-# Inserts a run log entry.
+
 export insert-run-log = """
-    INSERT INTO run_log (
-        updater,
-        event,
-        date,
-        comment,
-        page_id,
-        date_from
+    INSERT INTO `run_log` (
+        `updater`,
+        `event`,
+        `date`,
+        `comment`,
+        `page_id`,
+        `date_from`
     ) VALUES (
         ?,
         ?,
@@ -58,7 +58,7 @@ export insert-run-log = """
         ?
     )
 """
-
+# Selects the last page that is added to the catalog progress.
 export select-catalog-resume-page = """
     SELECT `page_id`
     FROM `run_log`
@@ -84,6 +84,80 @@ export select-catalog-resume-page = """
 """
 
 export truncate-inventory = """
-    TRUNCATE inventory_items;
-    TRUNCATE inventory_items_distribution_centers;
+    TRUNCATE `inventory_items`;
+    TRUNCATE `inventory_items_price`;
+    TRUNCATE `inventory_items_quantity`;
+"""
+
+export replace-inventory-item = """
+    REPLACE INTO inventory_items (
+        `last_modified`,
+        `Sku`,
+        `Title`,
+        `Subtitle`,
+        `ShortDescription`,
+        `Description`,
+        `Weight`,
+        `SupplierCode`,
+        `WarehouseLocation`,
+        `TaxProductCode`,
+        `FlagStyle`,
+        `FlagDescription`,
+        `IsBlocked`,
+        `BlockComment`,
+        `ASIN`,
+        `ISBN`,
+        `UPC`,
+        `MPN`,
+        `EAN`,
+        `Manufacturer`,
+        `Brand`,
+        `Condition`,
+        `Warranty`,
+        `ProductMargin`,
+        `SupplierPO`,
+        `HarmonizedCode`,
+        `Height`,
+        `Length`,
+        `Width`,
+        `Classification`
+    ) VALUES (
+        #{(['?'] * 30).join ", "}
+    );
+"""
+
+export replace-inventory-quantity-data = """
+    REPLACE INTO inventory_items_quantity (
+        `item_sku`,
+        `Available`,
+        `OpenAllocated`,
+        `OpenUnallocated`,
+        `PendingCheckout`,
+        `PendingPayment`,
+        `PendingShipment`,
+        `Total`,
+        `OpenAllocatedPooled`,
+        `OpenUnallocatedPooled`,
+        `PendingCheckoutPooled`,
+        `PendingPaymentPooled`,
+        `PendingShipmentPooled`,
+        `TotalPooled`
+    ) VALUES (
+        #{(['?'] * 14).join ", "}
+    );
+"""
+
+export replace-inventory-price-data = """
+    REPLACE INTO inventory_items_price (
+        `item_sku`,
+        `Cost`,
+        `RetailPrice`,
+        `StartingPrice`,
+        `ReservePrice`,
+        `TakeItPrice`,
+        `SecondChanceOfferPrice`,
+        `StorePrice`
+    ) VALUES (
+        #{(['?'] * 8).join ", "}
+    );
 """

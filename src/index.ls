@@ -3,6 +3,8 @@ require! <[
     ./updaters ./queries
 ]>
 
+# TODO: for queries, shall there be a hard limit to run FROM catalog reset?
+
 {EventEmitter} = require 'events'
 
 {
@@ -42,11 +44,11 @@ class CALDB extends EventEmitter
 
     run-checks: (callback) ->
         @logger.debug "caldb - run: run-checks"
+
         # First, check if the database connection will work
-        @db = mysql.create-connection @dbopts
-
         @logger.debug "caldb - run-checks: db connect"
-
+        @dbopts.multiple-statements = true
+        @db = mysql.create-connection @dbopts
         err <~ @db.connect
         if err
             return @emit 'error', new ErrorInfo do
@@ -55,10 +57,9 @@ class CALDB extends EventEmitter
                 stage: "pre-update-checks"
                 fatal: true
 
-        @logger.debug "caldb - run-checks: try db query"
-
         # Try a database query that should work.
         #   In this case, select items from the run log.
+        @logger.debug "caldb - run-checks: try db query"
         err <~ @db.query "SELECT * FROM run_log LIMIT 10"
         if err
             return @emit 'error', new ErrorInfo do
@@ -68,11 +69,10 @@ class CALDB extends EventEmitter
                 stage: "pre-update-checks"
                 fatal: true
 
-        @logger.debug "caldb - run-checks: check client init"
-
         # Then, check the client. Is it initialized?
         #   We're going to check by seeing if
         #   a test SOAP method is available.
+        @logger.debug "caldb - run-checks: check client init"
         if not @client?.AdminService?.Ping?
             return @emit 'error', new ErrorInfo do
                 error: new Error "channeladvisor2 client \
@@ -91,7 +91,7 @@ class CALDB extends EventEmitter
         # Check to see if we're doing a "manual" catalog update.
         if manual is yes
             return set-timeout ~>
-                updaters.catalog.call @, , manual
+                updaters.catalog.call @, comment, , manual
 
         # Check if there is anything in the run_log.
         #   If there isn't, then run catalog, since this is
@@ -106,7 +106,7 @@ class CALDB extends EventEmitter
                 fatal: true
         if rows.length is 0
             return set-timeout ~>
-                updaters.catalog.call @
+                updaters.catalog.call @, comment
 
         # Now, check if there has been an incomplete catalog update.
         #   If there is an item, then run catalog.
@@ -120,10 +120,10 @@ class CALDB extends EventEmitter
                 fatal: true
         if rows.length is not 0
             return set-timeout ~>
-                updaters.catalog.call @, rows[0].date
+                updaters.catalog.call @, comment, rows[0].date
 
         # Else, we can just run 'updates'.
         return set-timeout ~>
-            updater.updates.call @
+            updater.updates.call @, comment
 
 module.exports = CALDB

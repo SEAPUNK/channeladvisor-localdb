@@ -13,19 +13,14 @@ require! <[
     ErrorInfo
 } = require '../info-objects/'
 
-module.exports = (date-to-fetch-to, force = no) ->
+module.exports = (comment, date-to-fetch-to, force = no) ->
     @logger.debug "caldb/catalog: start"
 
     fetch = @client.InventoryService.GetFilteredInventoryItemList
 
-    var start-date
-    current-page = 1
-
-    @logger.debug "caldb/catalog: select-catalog-resume-page"
-
     # Get the resume data for the catalog update, if any.
+    @logger.debug "caldb/catalog: select-catalog-resume-page"
     err, rows <~ @db.query queries.select-catalog-resume-page
-
     if err
         return @emit 'error', new ErrorInfo do
             error: err
@@ -36,27 +31,35 @@ module.exports = (date-to-fetch-to, force = no) ->
 
     date-to-fetch-from = new Date "2000"
 
+    current-page = 1
+
     if not force
     and date-to-fetch-to
     and rows.length is not 0
-        # Then we can use the progress row.
+        # Then we can make the current-page the last progress run page.
         current-page := rows[0].page_id
 
-    comment = ""
+    if comment
+        comment := comment + " || "
+    else
+        comment := ""
+
     if force
         @logger.debug "caldb/catalog: using force"
-        comment := "Forceful update per request. \
+        comment := comment + "Forceful update per request. \
             Existing data will be truncated."
+
+    continuing = false
 
     if not date-to-fetch-to
         date-to-fetch-to := new Date
     else
         @logger.debug "caldb/catalog: continuing catalog, #{date-to-fetch-to}"
-        comment := "Continuing catalog update last \
-        run on #{date-to-fetch-to.toGMTString!} from page #{current-page}."
+        continuing := true
+        comment := comment + "Continuing catalog update last \
+            run on #{date-to-fetch-to.toGMTString!} from page #{current-page}."
 
-
-    start-date := new Date
+    start-date = new Date
 
     async.waterfall [
         (next) ~>
@@ -97,15 +100,16 @@ module.exports = (date-to-fetch-to, force = no) ->
             else
                 return next!
         (next) ~>
-            # Insert the update:checkpoint log entry.
-            @logger.debug "caldb/catalog: updates checkpoint"
+            # Insert the update:checkpoint log entry if this is not a resume.
+            if continuing
+                return next!
 
-            # TODO: If we're "continuing", shouldn't we omit the checkpoints?
+            @logger.debug "caldb/catalog: updates checkpoint"
             err <~ @db.query queries.insert-run-log, [
                 'updates'
                 'checkpoint'
                 start-date
-                null
+                ''
                 null
                 null
             ]
@@ -118,9 +122,9 @@ module.exports = (date-to-fetch-to, force = no) ->
                     stage: "catalog:update-checkpoint"
                     fatal: true
 
-
+            return next!
+        (next) ~>
             # Insert the catalog:start run log entry.
-
             @logger.debug "caldb/catalog: insert catalog:start"
             err <~ @db.query queries.insert-run-log, [
                 'catalog'
@@ -169,32 +173,146 @@ module.exports = (date-to-fetch-to, force = no) ->
                     yield conf
                 void
 
-            @logger.debug "caldb/catalog: initialized pages generator"
             page = pages!
+            @logger.debug "caldb/catalog: initialized pages generator"
 
             # TODO: Make function that checks errors, and handles them
 
             async.forever do
                 (callback) ~>
                     # TODO: Get the next page.
-                    @logger.debug "caldb/catalog: fetching next page"
+                    @logger.debug "caldb/catalog: fetching page #{current-page}"
+                    @logger.debug "caldb/catalog: inserting catalog:progress"
+                    err <~ @db.query queries.insert-run-log, [
+                        'catalog'
+                        'progress'
+                        new Date
+                        ''
+                        current-page
+                        null
+                    ]
+                    if err then return callback err
+
                     err, result <~ fetch page.next!.value
-                    if err then callback err
-                    console.log do
-                        require 'util' .inspect do
-                            result
-                                .GetFilteredInventoryItemListResult
-                                .ResultData
-                                .InventoryItemResponse
+                    @logger.debug "caldb/catalog: fetched page"
+                    if err then return callback err
+
+                    result = result.GetFilteredInventoryItemListResult # ugh
+
+                    # Check if the message code is 0.
+                    #   If it's anything other than that, then we need to throw
+                    #   an error.
+                    if result.MessageCode is not 0
+                        return callback new Error "MessageCode is not 0, \
+                            but is #{result.MessageCode} with message: \
+                            #{result.Message}"
+
+                    data = result.ResultData.InventoryItemResponse # u g h
+
+                    if data.length is 0
+                        @logger.debug "caldb/catalog: all items fetched"
+                        return callback "OKAY"
+
+                    q = async.queue (item, done) ~>
+                        process-individual-item.call @, item, done
+
+                    q.drain = ~>
+                        @logger.debug "caldb/catalog: done processing items, fetching next page"
+                        callback!
+
+                    q.push data, (err) ~>
+                        if err
+                            @logger.debug "caldb/catalog/queue: got error from an item process"
+                            q.kill!
+                            return callback err
+
                 (err) ~>
                     if err is not "OKAY"
                         @logger.debug "caldb/catalog: err is NOT 'OKAY'"
                         return @emit 'error', new ErrorInfo do
                             error: err
-                            message: "could not query items"
-                            stage: "updates:get-next-page"
+                            message: "could not process/query items"
+                            stage: "catalog:get-next-page"
                             fatal: true
+
+                    @logger.debug "caldb/catalog: EVERYTHING WENT OKAY, ALL ITEMS ARE DONE"
                     # TODO: Clean up.
 
     ], (err) ->
         throw err
+
+
+process-individual-item = (item, done) ->
+    @logger.debug "caldb/catalog/process-individual-item: inserting base data"
+    err <~ @db.query queries.replace-inventory-item, [
+        new Date
+        item.Sku
+        item.Title
+        item.Subtitle
+        item.ShortDescription
+        item.Description
+        item.Weight
+        item.SupplierCode
+        item.WarehouseLocation
+        item.TaxProductCode
+        item.FlagStyle
+        item.FlagDescription
+        item.IsBlocked
+        item.BlockComment
+        item.ASIN
+        item.ISBN
+        item.UPC
+        item.MPN
+        item.EAN
+        item.Manufacturer
+        item.Brand
+        item.Condition
+        item.Warranty
+        item.ProductMargin
+        item.SupplierPO
+        item.HarmonizedCode
+        item.Height
+        item.Length
+        item.Width
+        item.Classification
+    ]
+    if err then return done err
+
+    @logger.debug "caldb/catalog/process-individual-item: \
+        inserting quantity data"
+    quan = item.Quantity
+    err <~ @db.query queries.replace-inventory-quantity-data, [
+        item.Sku
+        quan.Available
+        quan.OpenAllocated
+        quan.OpenUnallocated
+        quan.PendingCheckout
+        quan.PendingPayment
+        quan.PendingShipment
+        quan.Total
+        quan.OpenAllocatedPooled
+        quan.OpenUnallocatedPooled
+        quan.PendingCheckoutPooled
+        quan.PendingPaymentPooled
+        quan.PendingShipmentPooled
+        quan.TotalPooled
+    ]
+    if err then return done err
+
+    @logger.debug "caldb/catalog/process-individual-item: \
+        inserting price data"
+    pric = item.PriceInfo
+    err <~ @db.query queries.replace-inventory-price-data, [
+        item.Sku
+        pric.Cost
+        pric.RetailPrice
+        pric.StartingPrice
+        pric.ReservePrice
+        pric.TakeItPrice
+        pric.SecondChanceOfferPrice
+        pric.StorePrice
+    ]
+    if err then return done err
+
+    @logger.debug "caldb/catalog/process-individual-item: processed item"
+    done!
