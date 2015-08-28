@@ -11,7 +11,7 @@ install
 limitations
 ---
 
-due to not enough laziness and not enough time, these InventoryItemResponse fields currently 
+due to laziness and not enough time, these InventoryItemResponse fields currently 
 are not implemented into the database:
 
 * DistributionCenterList
