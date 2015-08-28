@@ -11,8 +11,8 @@ install
 limitations
 ---
 
-due to API problems and whatnot, these InventoryItemResponse fields are not
-implemented into the database:
+due to not enough laziness and not enough time, these InventoryItemResponse fields currently 
+are not implemented into the database:
 
 * DistributionCenterList
 * VariationInfo
