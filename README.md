@@ -8,6 +8,18 @@ install
 
 `npm install channeladvisor-localdb`
 
+limitations
+---
+
+due to API problems and whatnot, these InventoryItemResponse fields are not
+implemented into the database:
+
+* DistributionCenterList
+* VariationInfo
+* StoreInfo
+* ImageList
+* MetaDescription
+
 use
 ---
 
@@ -19,11 +31,7 @@ require! <[ util ]>
 require! 'channeladvisor-localdb':CALDB
 
 ldb = new CALDB do
-    dbopts:
-        host: 'localhost'
-        user: 'ca_admin'
-        password: 'ca_password'
-        database: 'channeladvisor'
+    dburi: "mysql://ca_admin:ca_password@localhost/channeladvisor"
     client: client
     logger: logger
     account: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
@@ -44,7 +52,7 @@ ldb.start!
 Creates new instance of the ChannelAdvisor localDB
 
 * `opts`: `object`
-    * `dbopts`: [`node-mysql`](https://github.com/felixge/node-mysql/) createConnection options
+    * `dburi`: A database URI that [`sequelize`](https://github.com/sequelize/sequelize) will accept
     * `client`: instance of the initialized [`node-channeladvisor2`](https://github.com/SEAPUNK/node-channeladvisor2) client
     * `logger`: a [`winston`](https://github.com/winstonjs/winston) logger instance, for if you want to log
     * `account`: the account ID for the database (format is `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)

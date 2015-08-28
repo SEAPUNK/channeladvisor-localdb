@@ -17,11 +17,10 @@ class UpdateContinueInfo
 
 class UpdateStatisticsInfo
     ({
-        @added
         @changed
         @deleted
     }) ->
-        @processed = @added + @changed + @deleted
+        @processed = @changed + @deleted
 
 # non-exported extended classes
 class GenericUpdateInfo extends UpdateContinueInfo
@@ -30,7 +29,15 @@ class GenericUpdateInfo extends UpdateContinueInfo
     }) ->
         super ...
 
-# exported extended classes
+# exported classes
+export class ItemUpdateInfo
+    ({
+        @type
+        @date
+        @item
+    }) ->
+        # no superclass
+
 export class UpdatesUpdateInfo extends GenericUpdateInfo
     ->
         super ...
@@ -76,13 +83,13 @@ export class UpdateProgressInfo extends UpdateStatisticsInfo
         @comment
         @current-page
     }) ->
-        @duration = @date-started - @date
+        @duration = @date - @date-started
         super ...
 
 export class ErrorInfo
     ({
         @error
-        @msg
+        @message
         @stage
         @fatal
         @comment

@@ -1,13 +1,6 @@
-# Selects all rows from the run log, limit 5.
-# Used for checking whether anything is even in the run log.
-export select-limited-logs = """
-    SELECT * FROM `run_log` LIMIT 5
-"""
-
-# Selects ID of the catalog run that hasn't been completed.
 export select-incomplete-catalog-run = """
-    SELECT `date`
-    FROM `run_log`
+    SELECT *
+    FROM `RunLogs`
     WHERE
         `updater` = 'catalog'
     AND
@@ -17,7 +10,7 @@ export select-incomplete-catalog-run = """
             SELECT
                 `date` AS `dt`
             FROM
-                `run_log`
+                `RunLogs`
             WHERE
                 `updater` = 'catalog'
             AND
@@ -28,6 +21,34 @@ export select-incomplete-catalog-run = """
     ORDER BY `date` DESC
     LIMIT 1
 """
+
+export select-last-catalog-update-progress = """
+    SELECT *
+    FROM `RunLogs`
+    WHERE
+        `updater` = 'catalog'
+    AND
+        `event` = 'progress'
+    AND
+        `date` > IFNULL((
+            SELECT
+                `date` AS `dt`
+            FROM
+                `RunLogs`
+            WHERE
+                `updater` = 'catalog'
+            AND
+                `event` = 'done'
+            ORDER BY `date` DESC
+            LIMIT 1
+        ), '1500-01-01')
+    ORDER BY `date` DESC
+    LIMIT 1
+"""
+
+########################
+### Unused queries below
+########################
 
 # Selects the last update checkpoint date.
 export select-last-update-checkpoint-date = """

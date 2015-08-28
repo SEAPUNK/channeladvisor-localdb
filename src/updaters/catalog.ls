@@ -1,6 +1,5 @@
 require! <[
     ../queries
-    ../fetch-item
     async
 ]>
 
@@ -11,51 +10,63 @@ require! <[
     UpdateStopInfo
     UpdateDoneInfo
     UpdateProgressInfo
+    ItemUpdateInfo
     ErrorInfo
 } = require '../info-objects/'
 
 module.exports = (comment, date-to-fetch-to, force = no) ->
     debug = @debug.push "catalog"
-
     debug "start"
 
-    @reset-counters!
+    ###
+    # Reset stats
+    @reset-stats!
 
+    ###
+    # Variables
     fetch = @client.InventoryService.GetFilteredInventoryItemList
 
-    # Get the resume data for the catalog update, if any.
-    debug "select-catalog-resume-page"
-    err, rows <~ @db.query queries.select-catalog-resume-page
+    ###
+    # Fetch resume data
+    debug "RunLog.get-last-catalog-update-progress"
+    err, runlog <~ @models.RunLog.get-last-catalog-update-progress
     if err
-        return @emit 'error', new ErrorInfo do
+        return @errout do
             error: err
             message: "could not run database query, \
-                at updater.catalog,select-last-update-checkpoint-date"
+                at catalog:RunLog.get-last-catalog-update-progress"
             stage: "catalog:pre-run-checks"
-            fatal: true
 
+    ###
+    # More variables
     date-to-fetch-from = new Date "2000"
-
     current-page = 1
 
+    ###
+    # Determine resume page
     if not force
     and date-to-fetch-to
     and rows.length is not 0
         # Then we can make the current-page the last progress run page.
-        current-page := rows[0].page_id
+        current-page := runlog.page-id
 
+    ###
+    # Set comment
     if comment
         comment := comment + " || "
     else
         comment := ""
 
+    ###
+    # Determine force update
     if force
         debug "using force"
         comment := comment + "Forceful update per request. \
             Existing data will be truncated."
 
+    ###
+    # Determine date to fetch to and if continuing
     continuing = false
-
     if not date-to-fetch-to
         date-to-fetch-to := new Date
     else
@@ -64,90 +75,100 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
         comment := comment + "Continuing catalog update last \
             run on #{date-to-fetch-to.toGMTString!} from page #{current-page}."
 
+    ###
+    # Set the start date
     start-date = new Date
 
     async.waterfall [
+        ###
+        # Insert catalog:reset if force
         (next) ~>
-            # Insert a "catalog:reset" run log if we are forcing an update.
             if force
                 debug "resetting catalog"
-                err <~ @db.query queries.insert-run-log, [
-                    'catalog'
-                    'reset'
-                    start-date
-                    "Forceful reset of catalog requested."
-                    null
-                    null
-                ]
+                err <~ @unpromise @models.RunLog.create do
+                    updater: 'catalog'
+                    event: 'reset'
+                    date: start-date
+                    comment: "Forceful reset of catalog requested."
                 if err
-                    return @emit 'error', new ErrorInfo do
+                    return @errout do
                         error: err
                         message: "could not run database query, \
-                            at updater.catalog,insert-run-log"
+                            at catalog:RunLog.create"
                         stage: "catalog:insert-force-log"
-                        fatal: true
                 return next!
             else
                 return next!
+
+        ###
+        # Truncate tables if force
         (next) ~>
-            # Reset the inventory items if we're forcing.
             if force
                 debug "truncating tables"
-                err <~ @db.query queries.truncate-inventory
-                if err
-                    return @emit 'error', new ErrorInfo do
+                async.waterfall [
+                    (nxt) ~>
+                        @unpromise (@db.query "SET FOREIGN_KEY_CHECKS = 0"), nxt
+                    (_, nxt) ~>
+                        @unpromise @models.InventoryItemPrice.truncate!, nxt
+                    (_, nxt) ~>
+                        @unpromise @models.InventoryItemQuantity.truncate!, nxt
+                    (_, nxt) ~>
+                        @unpromise @models.InventoryItemAttribute.truncate!, nxt
+                    (_, nxt) ~>
+                        @unpromise @models.InventoryItem.truncate!, nxt
+                    (_, nxt) ~>
+                        @unpromise (@db.query "SET FOREIGN_KEY_CHECKS = 1"), nxt
+                ], (err) ~>
+                    if err then return @errout do
                         error: err
                         message: "could not run database query, \
-                            at updater.catalog,truncate-inventory"
+                            at catalog:InventoryItem.truncate cascade: true"
                         stage: "catalog:truncate-inventory"
-                        fatal: true
-                return next!
+                    next!
             else
                 return next!
+
+        ###
+        # Insert update:checkpoint if not continuing
         (next) ~>
-            # Insert the update:checkpoint log entry if this is not a resume.
             if continuing
                 return next!
 
             debug "updates checkpoint"
-            err <~ @db.query queries.insert-run-log, [
-                'updates'
-                'checkpoint'
-                start-date
-                ''
-                null
-                null
-            ]
-
+            err <~ @unpromise @models.RunLog.create do
+                updater: 'updates'
+                event: 'checkpoint'
+                date: start-date
             if err
-                return @emit 'error', new ErrorInfo do
+                return @errout do
                     error: err
                     message: "could not run database query, \
-                        at updater.catalog,insert-run-log"
+                        at catalog:RunLog.create"
                     stage: "catalog:update-checkpoint"
-                    fatal: true
 
             return next!
-        (next) ~>
-            # Insert the catalog:start run log entry.
-            debug "insert catalog:start"
-            err <~ @db.query queries.insert-run-log, [
-                'catalog'
-                'start'
-                start-date
-                comment
-                null
-                null
-            ]
 
+        ###
+        # Insert catalog:start
+        (next) ~>
+            debug "insert catalog:start"
+            err <~ @unpromise @models.RunLog.create do
+                updater: 'catalog'
+                event: 'start'
+                date: start-date
+                comment: comment
             if err
-                return @emit 'error', new ErrorInfo do
+                return @errout do
                     error: err
                     message: "could not run database query, \
-                        at updater.catalog,insert-run-log"
+                        at catalog:RunLog.create"
                     stage: "catalog:start-run"
-                    fatal: true
 
+            next!
+
+        ###
+        # Emit update-start
+        (next) ~>
             # emit the update-start event, then start fetching.
             debug "emit update-start"
             @emit 'update-start', new UpdateStartInfo do
@@ -158,7 +179,11 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                     date-to: date-to-fetch-to
                     page: current-page
                 comment: comment
+            next!
 
+        ###
+        # Pages generator
+        (next) ~>
             pages = !~>*
                 loop
                     conf =
@@ -180,38 +205,48 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
 
             page = pages!
             debug "initialized pages generator"
+            next null, page
 
-            # TODO: Make function that checks errors, and handles them
+        ###
+        # Page fetching
+        # TODO: Make function that checks errors, and handles them
+        (page, next) ~>
 
             async.forever do
+                ###
+                # Fetch next page
                 (callback) ~>
-                    # TODO: Get the next page.
                     debug "fetching page #{current-page}"
+
+                    ###
+                    # Insert catalog:progress
                     debug "inserting catalog:progress"
-                    err <~ @db.query queries.insert-run-log, [
-                        'catalog'
-                        'progress'
-                        new Date
-                        ''
-                        current-page
-                        null
-                    ]
+                    err <~ @unpromise @models.RunLog.create do
+                        updater: 'catalog'
+                        event: 'progress'
+                        page-id: current-page
+
                     if err then return callback err
 
+                    ###
+                    # Emit update-progress
                     @emit 'update-progress', new UpdateProgressInfo do
                             type: 'catalog'
                             date: new Date
                             date-started: start-date
                             comment: ''
                             current-page: current-page
-                            added: @items-added
-                            changed: @items-changed
-                            deleted: @items-deleted
+                            changed: @stats.changed
+                            deleted: @stats.deleted
 
+                    ###
+                    # Call API for next page
                     err, result <~ fetch page.next!.value
-                    debug "fetched page"
                     if err then return callback err
+                    debug "fetched page"
 
+                    ###
+                    # Process API response
                     result = result.GetFilteredInventoryItemListResult # ugh
 
                     # Check if the message code is 0.
@@ -224,38 +259,65 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
 
                     data = result.ResultData.InventoryItemResponse # u g h
 
+                    ###
+                    # Check if there is any more data
                     if data.length is 0
                         debug "all items fetched"
                         return callback "OKAY"
 
-                    q = async.queue (item, done) ~>
-                        process-individual-item.call @, item, done
+                    ###
+                    # Queue: Process individual item
+                    q = async.queue do
+                        (item, done) ~>
+                            process-individual-item.call @, item, done
+                        100 # 100 items at a time
+                            #   because we don't want to wait
+                            #   about an hour for each page
 
                     q.drain = ~>
                         debug "done processing items, \
                             fetching next page"
                         callback!
 
-                    q.push data, (err, sku) ~>
+                    ###
+                    # Post-process each item
+                    q.push data, (err, item) ~>
                         debug = (@debug.push "catalog").push "queue"
                         if err
                             debug "got error from an item during processing"
                             q.kill!
                             return callback err
 
-                        # Try to get the item from the DB, and then feed it into
-                        #   the EventEmitter.
-                        err, item <~ fetch-item @db~query, sku
+                        ###
+                        # Up the counter
+                        @stats.changed++
+
+                        ###
+                        # Get the item again,
+                        #   but with associations eager-loaded
+                        err, item <~ @unpromise @models.InventoryItem.findOne do
+                            where:
+                                Sku: item.Sku
+                            include: [
+                                * model: @models.InventoryItemAttribute
+                                  as: "Attributes"
+                                * model: @models.InventoryItemPrice
+                                  as: "Price"
+                                * model: @models.InventoryItemQuantity
+                                  as: "Quantity"
+                            ]
+
                         if err
-                            debug "got error from an item during fetching"
+                            debug "could not re-fetch the item"
                             q.kill!
                             return callback err
 
-                        @emit 'new-item', new NewItemInfo do
+                        ###
+                        # Emit item-update
+                        @emit 'item-update', new ItemUpdateInfo do
                             type: 'catalog'
                             date: new Date
                             item: item
-                            comment: comment
 
                 (err) ~>
                     if err is not "OKAY"
@@ -270,81 +332,101 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                         ALL ITEMS ARE DONE"
                     # TODO: Clean up.
 
-    ], (err) ->
+    ], (err) ~>
         throw err
 
 
-process-individual-item = (item, done) ->
+process-individual-item = (item-data, callback) ->
     debug = (@debug.push "catalog").push "process-individual-item"
 
-    debug "inserting base data"
-    err <~ @db.query queries.replace-inventory-item, [
-        new Date
-        item.Sku
-        item.Title
-        item.Subtitle
-        item.ShortDescription
-        item.Description
-        item.Weight
-        item.SupplierCode
-        item.WarehouseLocation
-        item.TaxProductCode
-        item.FlagStyle
-        item.FlagDescription
-        item.IsBlocked
-        item.BlockComment
-        item.ASIN
-        item.ISBN
-        item.UPC
-        item.MPN
-        item.EAN
-        item.Manufacturer
-        item.Brand
-        item.Condition
-        item.Warranty
-        item.ProductMargin
-        item.SupplierPO
-        item.HarmonizedCode
-        item.Height
-        item.Length
-        item.Width
-        item.Classification
-    ]
-    if err then return done err
+    ###
+    # Insert base data
+    debug "inserting data"
+    err, item <~ create-item.call @, item-data
+    if err then return callback err
 
-    debug "inserting quantity data"
-    quan = item.Quantity
-    err <~ @db.query queries.replace-inventory-quantity-data, [
-        item.Sku
-        quan.Available
-        quan.OpenAllocated
-        quan.OpenUnallocated
-        quan.PendingCheckout
-        quan.PendingPayment
-        quan.PendingShipment
-        quan.Total
-        quan.OpenAllocatedPooled
-        quan.OpenUnallocatedPooled
-        quan.PendingCheckoutPooled
-        quan.PendingPaymentPooled
-        quan.PendingShipmentPooled
-        quan.TotalPooled
-    ]
-    if err then return done err
+    ###
+    # Insert attribute data
+    debug "inserting attributes"
+    err, item <~ set-item-attributes.call @, item
+    if err then return callback err
 
-    debug "inserting price data"
-    pric = item.PriceInfo
-    err <~ @db.query queries.replace-inventory-price-data, [
-        item.Sku
-        pric.Cost
-        pric.RetailPrice
-        pric.StartingPrice
-        pric.ReservePrice
-        pric.TakeItPrice
-        pric.SecondChanceOfferPrice
-        pric.StorePrice
-    ]
-    if err then return done err
-
+    ###
+    # Callback
     debug "processed item"
-    done null, item.Sku
+    callback null, item
+
+create-item = (item-data, callback) ->
+    ###
+    # Separate data
+    quantity-data = delete item-data.Quantity
+    price-data = delete item-data.PriceInfo
+
+    ###
+    # Initialize or find the current inventory item
+    err, item <~ @unpromise.spread @models.InventoryItem.find-or-create do
+        where:
+            Sku: delete item-data.Sku
+    if err then return callback err
+
+    item = item[0]
+
+    ###
+    # Update the item with the data
+    err <~ @unpromise item.update item-data
+    if err then return callback err
+
+    ###
+    # Create InventoryItemPrice association
+    err <~ @unpromise item.createPrice price-data
+    if err then return callback err
+
+    ###
+    # Create InventoryItemQuantity association
+    err <~ @unpromise item.createQuantity quantity-data
+    if err then return callback err
+
+    return callback null, item
+
+set-item-attributes = (item, callback) ->
+    debug = (@debug.push "catalog").push "set-item-attributes"
+
+    debug "making api call"
+    ###
+    # Make the API call for the item
+    fetch = @client.InventoryService.GetInventoryItemAttributeList
+
+    err, result <~ fetch do
+        accountID: @account
+        sku: item.Sku
+    if err then return callback err
+
+    debug "got api response"
+    ###
+    # Process API response
+    result = result.GetInventoryItemAttributeListResult # ugh
+
+    # Check if the message code is 0.
+    #   If it's anything other than that, then we need to throw
+    #   an error.
+    if result.MessageCode is not 0
+        return callback new Error "MessageCode is not 0, \
+            but is #{result.MessageCode} with message: \
+            #{result.Message}"
+
+    data = result.ResultData.AttributeInfo
+
+    ###
+    # Create queue
+    q = async.queue (attribute, done) ~>
+        ###
+        # Process queue
+        err <~ @unpromise item.createAttribute attribute
+        if err
+            q.kill!
+            return callback err
+        done!
+
+    q.drain = ~>
+        callback null, item
+    q.push data
