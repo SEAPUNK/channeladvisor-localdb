@@ -20,6 +20,8 @@ are not implemented into the database:
 * ImageList
 * MetaDescription
 
+and, there are a bunch of things i should do to it (getters, setters, overrides, etc), but i don't quite have the time to do it right now; if you want it so bad, open up a pull request?
+
 use
 ---
 
