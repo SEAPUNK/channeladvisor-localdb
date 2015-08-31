@@ -107,8 +107,12 @@ class CALDB extends EventEmitter
         # Prepare Sequelize.
         models.define.call @
 
+        debug "defined models"
+
         # Sync database.
-        err <~ @unpromise @db.sync force: true
+        err <~ @unpromise @db.sync force: false
+
+        debug "db sync done"
         if err then return @errout do
             error: err
             message: "could not sync sequelize to db"
@@ -116,6 +120,14 @@ class CALDB extends EventEmitter
 
         callback!
 
+    catalog-done: ->
+        @run-updater no, ''
+
+    updates-done: ->
+        set-timeout do
+            ~>
+                @run-updater no, ''
+            60*1000*1000 # one hour
 
     run-updater: (manual, comment) ->
         debug = @debug.push "run-updater"
@@ -137,7 +149,7 @@ class CALDB extends EventEmitter
             message: "could not run database query, \
                 at @models.RunLog.count()"
             stage: "determine-updater"
-        if count is 0
+        if count.0 is 0
             debug "nothing in the run log, calling catalog"
             return set-timeout ~>
                 updaters.catalog.call @, comment
@@ -151,10 +163,10 @@ class CALDB extends EventEmitter
                 message: "could not run database query, \
                     at run-updater,select-incomplete-catalog-run"
                 stage: "determine-updater"
-        if runlog?.date
+        if runlog.length is not 0 and runlog[0].date
             debug "incomplete catalog update, calling catalog"
             return set-timeout ~>
-                updaters.catalog.call @, comment, runlog.date
+                updaters.catalog.call @, comment, runlog[0].date
 
         # Else, we can just run 'updates'.
         return set-timeout ~>

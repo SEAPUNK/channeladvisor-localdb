@@ -3,6 +3,8 @@ require! <[
     async
 ]>
 
+{inspect} = require 'util'
+
 {
     UpdatesUpdateInfo
     CatalogUpdateInfo
@@ -46,9 +48,10 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
     # Determine resume page
     if not force
     and date-to-fetch-to
-    and rows.length is not 0
+    and runlog.length is not 0
         # Then we can make the current-page the last progress run page.
-        current-page := runlog.page-id
+        current-page := runlog[0].page-id
+        debug "changing current-page to #{current-page}"
 
     ###
     # Set comment
@@ -261,7 +264,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
 
                     ###
                     # Check if there is any more data
-                    if data.length is 0
+                    if data.length is 0 or current-page is 10 # TODO: REMOVE WHEN DONE USING
                         debug "all items fetched"
                         return callback "OKAY"
 
@@ -281,6 +284,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
 
                     ###
                     # Post-process each item
+                    items-left-to-fetch = data.length
                     q.push data, (err, item) ~>
                         debug = (@debug.push "catalog").push "queue"
                         if err
@@ -314,6 +318,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
 
                         ###
                         # Emit item-update
+                        debug "item done fetching, #{--items-left-to-fetch} left"
                         @emit 'item-update', new ItemUpdateInfo do
                             type: 'catalog'
                             date: new Date
@@ -328,9 +333,27 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                             stage: "catalog:get-next-page"
                             fatal: true
 
-                    debug "EVERYTHING WENT OKAY, \
-                        ALL ITEMS ARE DONE"
-                    # TODO: Clean up.
+                    debug "cleaning up; pushing catalog:done"
+
+                    err <~ @unpromise @models.RunLog.create do
+                        updater: 'catalog'
+                        event: 'done'
+
+                    if err then return @emit 'error', new ErrorInfo do
+                        error: err
+                        message: "could not push catalog:done"
+                        stage: "catalog:cleanup"
+                        fatal: true
+
+                    @emit 'update-done', new UpdateDoneInfo do
+                        type: 'catalog'
+                        date: new Date
+                        comment: comment
+                        changed: @stats.changed
+                        deleted: @stats.deleted
+
+                    debug "selecting 'updates' updater"
+                    @catalog-done!
 
     ], (err) ~>
         throw err

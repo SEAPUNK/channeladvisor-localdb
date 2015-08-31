@@ -21,7 +21,7 @@ export define = ->
                     * model: this
                 promise.then do
                     (runlogs) ->
-                        return callback null, runlogs[0]
+                        return callback null, runlogs
                     (err) ->
                         return callback err
             get-last-catalog-update-progress: (callback) ->
@@ -30,6 +30,6 @@ export define = ->
                     * model: this
                 promise.then do
                     (runlogs) ->
-                        return callback null, runlogs[0]
+                        return callback null, runlogs
                     (err) ->
                         return callback err

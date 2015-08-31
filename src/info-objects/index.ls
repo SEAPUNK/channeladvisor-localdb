@@ -70,7 +70,6 @@ export class UpdateDoneInfo extends UpdateStatisticsInfo
     ({
         @type
         @date
-        @info
         @comment
     }) ->
         super ...
