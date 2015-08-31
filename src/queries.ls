@@ -46,6 +46,65 @@ export select-last-catalog-update-progress = """
     LIMIT 1
 """
 
+export select-last-updates-checkpoint = """
+    SELECT *
+    FROM `RunLogs`
+    WHERE
+        `updater` = 'updates'
+    AND
+        `event` = 'checkpoint'
+    ORDER BY `date` DESC
+    LIMIT 1
+"""
+
+export select-last-incomplete-updates-progress = """
+    SELECT *
+    FROM `RunLogs`
+    WHERE
+        `updater` = 'updates'
+    AND
+        `event` = 'progress'
+    AND
+        `date` > IFNULL((
+            SELECT
+                `date` AS `dt`
+            FROM
+                `RunLogs`
+            WHERE
+                `updater` = 'updates'
+            AND
+                `event` = 'done'
+            ORDER BY `date` DESC
+            LIMIT 1
+        ), '1500-01-01')
+    ORDER BY `date` DESC
+    LIMIT 1
+"""
+
+export select-last-incomplete-updates-start = """
+    SELECT *
+    FROM `RunLogs`
+    WHERE
+        `updater` = 'updates'
+    AND
+        `event` = 'progress'
+    AND
+        `date` > IFNULL((
+            SELECT
+                `date` AS `dt`
+            FROM
+                `RunLogs`
+            WHERE
+                `updater` = 'updates'
+            AND
+                `event` = 'done'
+            ORDER BY `date` DESC
+            LIMIT 1
+        ), '1500-01-01')
+    ORDER BY `date` DESC
+    LIMIT 1
+"""
+
 ########################
 ### Unused queries below
 ########################

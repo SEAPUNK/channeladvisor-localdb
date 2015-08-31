@@ -33,3 +33,21 @@ export define = ->
                         return callback null, runlogs
                     (err) ->
                         return callback err
+            get-last-updates-checkpoint: (callback) ->
+                promise = sequelize.query do
+                    * queries.select-last-updates-checkpoint
+                    * model: this
+                promise.then do
+                    (runlogs) ->
+                        return callback null, runlogs
+                    (err) ->
+                        return callback err
+            get-last-incomplete-updates-progress: (callback) ->
+                promise = sequelize.query do
+                    * queries.select-last-incomplete-updates-progress
+                    * model: this
+                promise.then do
+                    (runlogs) ->
+                        return callback null, runlogs
+                    (err) ->
+                        return callback err

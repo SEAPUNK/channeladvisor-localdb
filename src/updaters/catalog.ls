@@ -84,6 +84,36 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
 
     async.waterfall [
         ###
+        # Truncate tables (including RunLog!) if force
+        (next) ~>
+            if force
+                debug "truncating tables"
+                async.waterfall [
+                    (nxt) ~>
+                        @unpromise (@db.query "SET FOREIGN_KEY_CHECKS = 0"), nxt
+                    (_, nxt) ~>
+                        @unpromise @models.InventoryItemPrice.truncate!, nxt
+                    (_, nxt) ~>
+                        @unpromise @models.InventoryItemQuantity.truncate!, nxt
+                    (_, nxt) ~>
+                        @unpromise @models.InventoryItemAttribute.truncate!, nxt
+                    (_, nxt) ~>
+                        @unpromise @models.InventoryItem.truncate!, nxt
+                    (_, nxt) ~>
+                        @unpromise @models.RunLog.truncate!, nxt
+                    (_, nxt) ~>
+                        @unpromise (@db.query "SET FOREIGN_KEY_CHECKS = 1"), nxt
+                ], (err) ~>
+                    if err then return @errout do
+                        error: err
+                        message: "could not run database query, \
+                            at catalog:InventoryItem.truncate cascade: true"
+                        stage: "catalog:truncate-inventory"
+                    next!
+            else
+                return next!
+
+        ###
         # Insert catalog:reset if force
         (next) ~>
             if force
@@ -100,34 +130,6 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                             at catalog:RunLog.create"
                         stage: "catalog:insert-force-log"
                 return next!
-            else
-                return next!
-
-        ###
-        # Truncate tables if force
-        (next) ~>
-            if force
-                debug "truncating tables"
-                async.waterfall [
-                    (nxt) ~>
-                        @unpromise (@db.query "SET FOREIGN_KEY_CHECKS = 0"), nxt
-                    (_, nxt) ~>
-                        @unpromise @models.InventoryItemPrice.truncate!, nxt
-                    (_, nxt) ~>
-                        @unpromise @models.InventoryItemQuantity.truncate!, nxt
-                    (_, nxt) ~>
-                        @unpromise @models.InventoryItemAttribute.truncate!, nxt
-                    (_, nxt) ~>
-                        @unpromise @models.InventoryItem.truncate!, nxt
-                    (_, nxt) ~>
-                        @unpromise (@db.query "SET FOREIGN_KEY_CHECKS = 1"), nxt
-                ], (err) ~>
-                    if err then return @errout do
-                        error: err
-                        message: "could not run database query, \
-                            at catalog:InventoryItem.truncate cascade: true"
-                        stage: "catalog:truncate-inventory"
-                    next!
             else
                 return next!
 
@@ -213,6 +215,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
         ###
         # Page fetching
         # TODO: Make function that checks errors, and handles them
+        # TODO: .stop()
         (page, next) ~>
 
             async.forever do
@@ -234,13 +237,13 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                     ###
                     # Emit update-progress
                     @emit 'update-progress', new UpdateProgressInfo do
-                            type: 'catalog'
-                            date: new Date
-                            date-started: start-date
-                            comment: ''
-                            current-page: current-page
-                            changed: @stats.changed
-                            deleted: @stats.deleted
+                        type: 'catalog'
+                        date: new Date
+                        date-started: start-date
+                        comment: ''
+                        current-page: current-page
+                        changed: @stats.changed
+                        deleted: @stats.deleted
 
                     ###
                     # Call API for next page

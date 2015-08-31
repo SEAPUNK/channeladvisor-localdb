@@ -11,7 +11,7 @@ install
 limitations
 ---
 
-due to laziness and not enough time, these InventoryItemResponse fields currently 
+due to laziness and not enough time, these InventoryItemResponse fields currently
 are not implemented into the database:
 
 * DistributionCenterList
@@ -70,13 +70,6 @@ Starts DB updater. Async function, runs in the background.
 * `manual`: Whether to force a catalog update. ***This truncates the existing inventory database!***
 * `comment`: Meta comment to store in the run log
 
-###`CALDB#stop(callback)`
-
-Stops DB updater.
-
-* `callback(err)`: Called when done stopping. `err` is not null if it didn't cleanly stop.
-
-
 <a name="events"></a>
 ###Events
 
@@ -121,3 +114,7 @@ Called whenever there's an error, may it be with updating or anything else.
 * `info`: [ErrorInfo](docs/info-objects.md#error) instance
 
 ---
+
+
+*side note: the code is doing a lot of copy-pasting, which is obviously bad;
+i will eventually do something about that, but until then...*
