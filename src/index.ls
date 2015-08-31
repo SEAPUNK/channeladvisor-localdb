@@ -127,7 +127,7 @@ class CALDB extends EventEmitter
         set-timeout do
             ~>
                 @run-updater no, ''
-            60*1000*1000 # one hour
+            60*60*1000 # one hour
 
     run-updater: (manual, comment) ->
         debug = @debug.push "run-updater"
