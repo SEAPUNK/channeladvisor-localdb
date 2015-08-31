@@ -51,3 +51,12 @@ export define = ->
                         return callback null, runlogs
                     (err) ->
                         return callback err
+            get-last-incomplete-updates-start: (callback) ->
+                promise = sequelize.query do
+                    * queries.select-last-incomplete-updates-start
+                    * model: this
+                promise.then do
+                    (runlogs) ->
+                        return callback null, runlogs
+                    (err) ->
+                        return callback err

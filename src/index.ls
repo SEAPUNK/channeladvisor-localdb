@@ -171,7 +171,7 @@ class CALDB extends EventEmitter
         # Else, we can just run 'updates'.
         return set-timeout ~>
             debug "all checks seem to have passed, calling updates"
-            updater.updates.call @, comment
+            updaters.updates.call @, comment
 
 module.exports = CALDB
 

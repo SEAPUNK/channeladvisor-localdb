@@ -213,11 +213,11 @@ module.exports = (comment) ->
                             but is #{result.MessageCode} with message: \
                             #{result.Message}"
 
-                    data = result.ResultData.InventoryItemResponse # u g h
+                    data = result.{}ResultData.[]InventoryItemResponse # u g h
 
                     ###
                     # Check if there is any more data
-                    if data.length is 0 or current-page is 10 # TODO: REMOVE WHEN DONE USING
+                    if data.length is 0
                         debug "all items fetched"
                         return callback "OKAY"
 
