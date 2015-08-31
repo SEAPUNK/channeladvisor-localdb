@@ -2,7 +2,7 @@
   "name": "channeladvisor-localdb",
   "version": "0.0.1",
   "description": "library that keeps the local inventory database updated",
-  "main": "index.js",
+  "main": "lib/index.js",
   "scripts": {
     "prepublish": "grunt build",
     "test": "mocha --compilers ls:livescript"

@@ -139,7 +139,7 @@ module.exports = (comment) ->
         ###
         # Pages generator
         (next) ~>
-            pages = !~>*
+            pages = ~>*
                 loop
                     conf =
                         accountID: @account

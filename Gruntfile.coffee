@@ -6,8 +6,8 @@ module.exports = (grunt) ->
     config.livescript =
         compile:
             expand: true
-            flatten: true
-            src: ['src/*.ls']
+            cwd: 'src/'
+            src: ['**/*.ls']
             dest: 'lib/'
             ext: '.js'
 

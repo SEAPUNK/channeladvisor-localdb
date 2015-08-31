@@ -189,7 +189,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
         ###
         # Pages generator
         (next) ~>
-            pages = !~>*
+            pages = ~>*
                 loop
                     conf =
                         accountID: @account
