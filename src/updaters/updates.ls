@@ -316,7 +316,7 @@ module.exports = (comment) ->
                         changed: @stats.changed
                         deleted: @stats.deleted
 
-                    debug "selecting 'updates' updater"
+                    debug "selecting 'updates' updater, 1 hour delay"
                     @updates-done!
 
     ], (err) ~>
