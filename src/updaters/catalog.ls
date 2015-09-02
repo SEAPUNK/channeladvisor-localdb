@@ -267,7 +267,7 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
 
                     ###
                     # Check if there is any more data
-                    if data.length is 0 or current-page is 5 # TODO: REMOVE WHEN DONE USING
+                    if data.length is 0
                         debug "all items fetched"
                         return callback "OKAY"
 
