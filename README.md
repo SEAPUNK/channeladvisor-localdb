@@ -55,7 +55,7 @@ Creates new instance of the ChannelAdvisor localDB
 
 * `opts`: `object`
     * `dburi`: A database URI that [`sequelize`](https://github.com/sequelize/sequelize) will accept
-    * `client`: instance of the initialized [`node-channeladvisor2`](https://github.com/SEAPUNK/node-channeladvisor2) client
+    * `client`: instance of the initialized [`channeladvisor2`](https://github.com/SEAPUNK/channeladvisor2) client
     * `logger`: a [`winston`](https://github.com/winstonjs/winston) logger instance, for if you want to log
     * `account`: the account ID for the database (format is `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
 
