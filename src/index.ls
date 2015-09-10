@@ -173,6 +173,19 @@ class CALDB extends EventEmitter
             debug "all checks seem to have passed, calling updates"
             updaters.updates.call @, comment
 
+    get-all-items: (callback) ->
+        err, items <~ @unpromise @models.InventoryItem.findAll do
+            include: [
+                * model: @models.InventoryItemAttribute
+                  as: "Attributes"
+                * model: @models.InventoryItemPrice
+                  as: "Price"
+                * model: @models.InventoryItemQuantity
+                  as: "Quantity"
+            ]
+
+        callback err, items
+
 module.exports = CALDB
 
 Debugger = ({@log, @namespace, @previous = null}) !->
