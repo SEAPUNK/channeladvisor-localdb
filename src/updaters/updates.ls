@@ -243,8 +243,9 @@ module.exports = (comment) ->
                         if err
                             debug "got error from an item during processing"
                             q.kill!
-                            return callback err
-
+                            try
+                                return callback err
+                            catch e
                         ###
                         # Up the counter
                         @stats.changed++
@@ -267,7 +268,9 @@ module.exports = (comment) ->
                         if err
                             debug "could not re-fetch the item"
                             q.kill!
-                            return callback err
+                            try
+                                return callback err
+                            catch e
 
                         ###
                         # Emit item-update

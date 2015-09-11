@@ -173,18 +173,11 @@ class CALDB extends EventEmitter
             debug "all checks seem to have passed, calling updates"
             updaters.updates.call @, comment
 
-    get-all-items: (callback) ->
-        err, items <~ @unpromise @models.InventoryItem.findAll do
-            include: [
-                * model: @models.InventoryItemAttribute
-                  as: "Attributes"
-                * model: @models.InventoryItemPrice
-                  as: "Price"
-                * model: @models.InventoryItemQuantity
-                  as: "Quantity"
-            ]
+    expose-models: ->
+        return @models
 
-        callback err, items
+    expose-sequelize: ->
+        return @db
 
 module.exports = CALDB
 
