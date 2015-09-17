@@ -3,6 +3,10 @@ channeladvisor-localdb
 
 library to create a local database of inventory items from channeladvisor
 
+**warning:** could use a lot of memory (~1GB), depending on how complex or
+full of data your inventory items are. i suggest that you run this library in
+its [server wrapper](https://github.com/seapunk/caldb-d)
+
 install
 ---
 
@@ -11,8 +15,8 @@ install
 limitations
 ---
 
-due to laziness and not enough time, these InventoryItemResponse fields currently
-are not implemented into the database:
+these InventoryItemResponse fields currently are currently not implemented
+into this library:
 
 * DistributionCenterList
 * VariationInfo
@@ -20,14 +24,12 @@ are not implemented into the database:
 * ImageList
 * MetaDescription
 
-and, there are a bunch of things i should do to it (getters, setters, overrides, etc), but i don't quite have the time to do it right now; if you want it so bad, open up a pull request?
-
 use
 ---
 
 ```javascript
 
-CALDB = require("channeladvisor-localdb")
+var CALDB = require("channeladvisor-localdb")
 
 var ldb = new CALDB({
     dburi: "mysql://ca_admin:ca_password@localhost/channeladvisor",
@@ -59,18 +61,27 @@ Creates new instance of the ChannelAdvisor localDB
     * `logger`: a [`winston`](https://github.com/winstonjs/winston) logger instance, for if you want to log
     * `account`: the account ID for the database (format is `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
 
-###`CALDB events`
-
-CALDB instances are also instances of the [EventEmitter](https://nodejs.org/api/events.html#events_class_events_eventemitter) class.
-
-List of events are [here](#events)
-
 ###`CALDB#start(manual, comment)`
 
 Starts DB updater. Async function, runs in the background.
 
 * `manual`: Whether to force a catalog update. ***This truncates the existing inventory database!***
 * `comment`: Meta comment to store in the run log
+
+###`CALDB#expose-models()`
+
+Returns the Sequelize models that CALDB is using.
+
+###`CALDB#expose-sequelize()`
+
+Returns the Sequelize instance that CALDB is using.
+
+###`CALDB events`
+
+CALDB instances are also instances of the [EventEmitter](https://nodejs.org/api/events.html#events_class_events_eventemitter) class.
+
+List of events are [here](#events)
+
 
 <a name="events"></a>
 ###Events
@@ -116,7 +127,3 @@ Called whenever there's an error, may it be with updating or anything else.
 * `info`: [ErrorInfo](docs/info-objects.md#error) instance
 
 ---
-
-
-*side note: the code is doing a lot of copy-pasting, which is obviously bad;
-i will eventually do something about that, but until then...*
