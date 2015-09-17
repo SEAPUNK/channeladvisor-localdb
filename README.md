@@ -25,27 +25,27 @@ and, there are a bunch of things i should do to it (getters, setters, overrides,
 use
 ---
 
-*examples are written in [livescript](https://livescript.net/)*
+```javascript
 
-```livescript
+CALDB = require("channeladvisor-localdb")
 
-require! <[ util ]>
-require! 'channeladvisor-localdb':CALDB
-
-ldb = new CALDB do
-    dburi: "mysql://ca_admin:ca_password@localhost/channeladvisor"
-    client: client
-    logger: logger
+var ldb = new CALDB({
+    dburi: "mysql://ca_admin:ca_password@localhost/channeladvisor",
+    client: client, //initialized channeladvisor2 client
+    logger: logger, //winston logger instance
     account: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+})
 
-ldb.on 'error', (info) ->
-    console.log util.inspect info
+ldb.on('error', function(info){
+    console.log(util.inspect(info))
     throw info.error
+})
 
-ldb.on 'update-progress', (info) ->
-    console.log util.inspect info
+ldb.on('update-progress', function(info){
+    console.log(util.inspect(info))
+})
 
-ldb.start!
+ldb.start()
 
 ```
 
