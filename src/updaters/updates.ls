@@ -226,7 +226,7 @@ module.exports = (comment) ->
                     q = async.queue do
                         (item, done) ~>
                             process-individual-item.call @, item, done
-                        100 # 100 items at a time
+                        50 # 50 items at a time
                             #   because we don't want to wait
                             #   about an hour for each page
 
