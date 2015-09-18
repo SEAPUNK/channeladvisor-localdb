@@ -73,7 +73,10 @@ class CALDB extends EventEmitter
         <~ @run-checks
         <~ @prepare-updater
         if not dry-run
+            require('debug')('CALDB')('not a dry run')
             @run-updater manual, comment
+        else
+            require('debug')('CALDB')('dry run, not actually updating')
 
     run-checks: (callback) ->
         debug = @debug.push "run-checks"
