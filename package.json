@@ -1,6 +1,6 @@
 {
   "name": "channeladvisor-localdb",
-  "version": "0.2.1",
+  "version": "0.3.1",
   "description": "library that keeps the local inventory database updated",
   "main": "lib/index.js",
   "scripts": {
@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "async": "^1.4.2",
+    "debug": "^2.2.0",
     "mysql": "^2.9.0",
     "sequelize": "^3.6.0",
     "winston": "^1.0.1"

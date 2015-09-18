@@ -34,7 +34,6 @@ var CALDB = require("channeladvisor-localdb")
 var ldb = new CALDB({
     dburi: "mysql://ca_admin:ca_password@localhost/channeladvisor",
     client: client, //initialized channeladvisor2 client
-    logger: logger, //winston logger instance
     account: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
 })
 
@@ -58,7 +57,6 @@ Creates new instance of the ChannelAdvisor localDB
 * `opts`: `object`
     * `dburi`: A database URI that [`sequelize`](https://github.com/sequelize/sequelize) will accept
     * `client`: instance of the initialized [`channeladvisor2`](https://github.com/SEAPUNK/channeladvisor2) client
-    * `logger`: a [`winston`](https://github.com/winstonjs/winston) logger instance, for if you want to log
     * `account`: the account ID for the database (format is `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
 
 ###`CALDB#start(manual, comment)`
@@ -116,7 +114,15 @@ Called when a database update has completed
 
 Called when there's progress in the database update.
 
-* `info`: [ProgressInfo](docs/info-objects.md#progress) instance
+* `info`: [ProgressInfo](docs/info-objects.md#update-progress) instance
+
+---
+
+`item-update -> (info)`
+
+Called when an item has been successfully pushed into the database.
+
+* `info`: [ItemUpdateInfo](docs/info-objects.md#item-update) instance
 
 ---
 

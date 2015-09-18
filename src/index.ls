@@ -61,7 +61,7 @@ class CALDB extends EventEmitter
             changed: 0
             deleted: 0
 
-    start: (manual, comment) ->
+    start: (manual, comment, dry-run) ->
         debug = @debug.push "start"
         debug "called"
 
@@ -72,7 +72,8 @@ class CALDB extends EventEmitter
         <~ setTimeout
         <~ @run-checks
         <~ @prepare-updater
-        @run-updater manual, comment
+        if not dry-run
+            @run-updater manual, comment
 
     run-checks: (callback) ->
         debug = @debug.push "run-checks"

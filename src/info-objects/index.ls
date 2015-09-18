@@ -91,6 +91,5 @@ export class ErrorInfo
         @message
         @stage
         @fatal
-        @comment
     }) ->
         # no superclass
