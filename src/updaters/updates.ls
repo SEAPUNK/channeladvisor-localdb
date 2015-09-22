@@ -44,7 +44,7 @@ module.exports = (comment) ->
             stage: "updates:pre-run-checks"
 
     checkpoint = runlog[0]
-    delete runlog
+    runlog = null
 
     ###
     # Fetch resume data, pt.1
@@ -59,7 +59,7 @@ module.exports = (comment) ->
 
     if runlog.length is not 0
         date-to-fetch-to = runlog[0].date
-    delete runlog
+    runlog = null
 
     ###
     # Fetch resume data, pt.2
@@ -76,7 +76,7 @@ module.exports = (comment) ->
     and runlog.length is not 0
         continuing = yes
         current-page = runlog[0].page-id
-    delete runlog
+    runlog = null
 
     ###
     # Set defaults
@@ -218,7 +218,7 @@ module.exports = (comment) ->
                             #{result.Message}"
 
                     data = result.{}ResultData.[]InventoryItemResponse # u g h
-                    delete result
+                    result = null
 
                     ###
                     # Check if there is any more data
@@ -285,7 +285,7 @@ module.exports = (comment) ->
                             type: 'updates'
                             date: new Date
                             item: item
-                        delete item
+                        item = null
 
                 (err) ~>
                     if err is not "OKAY"
