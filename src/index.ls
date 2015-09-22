@@ -128,11 +128,14 @@ class CALDB extends EventEmitter
     catalog-done: ->
         @run-updater no, ''
 
-    updates-done: ->
+    updates-done: (immediate) ->
+        timer = 60*5 # 5 minutes
+        if immedate then timer = 0
+
         set-timeout do
             ~>
                 @run-updater no, ''
-            60*60*1000 # one hour
+            timer
 
     run-updater: (manual, comment) ->
         debug = @debug.push "run-updater"

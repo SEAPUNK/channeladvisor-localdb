@@ -348,13 +348,6 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                         stage: "catalog:cleanup"
                         fatal: true
 
-                    @emit 'update-done', new UpdateDoneInfo do
-                        type: 'catalog'
-                        date: new Date
-                        comment: comment
-                        changed: @stats.changed
-                        deleted: @stats.deleted
-
                     debug "selecting 'updates' updater"
                     @catalog-done!
 

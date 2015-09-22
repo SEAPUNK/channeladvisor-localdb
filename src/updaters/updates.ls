@@ -44,6 +44,7 @@ module.exports = (comment) ->
             stage: "updates:pre-run-checks"
 
     checkpoint = runlog[0]
+    delete runlog
 
     ###
     # Fetch resume data, pt.1
@@ -58,6 +59,7 @@ module.exports = (comment) ->
 
     if runlog.length is not 0
         date-to-fetch-to = runlog[0].date
+    delete runlog
 
     ###
     # Fetch resume data, pt.2
@@ -72,7 +74,9 @@ module.exports = (comment) ->
 
     if date-to-fetch-to
     and runlog.length is not 0
+        continuing = yes
         current-page = runlog[0].page-id
+    delete runlog
 
     ###
     # Set defaults
@@ -119,7 +123,7 @@ module.exports = (comment) ->
                     message: "could not run database query, \
                         at updates:RunLog.create"
                     stage: "updates:start-run"
-            next!
+            set-timeout next
 
         ###
         # Emit update-start
@@ -134,7 +138,7 @@ module.exports = (comment) ->
                     date-to: date-to-fetch-to
                     page: current-page
                 comment: comment
-            next!
+            set-timeout next
 
         ###
         # Pages generator
@@ -214,6 +218,7 @@ module.exports = (comment) ->
                             #{result.Message}"
 
                     data = result.{}ResultData.[]InventoryItemResponse # u g h
+                    delete result
 
                     ###
                     # Check if there is any more data
@@ -225,7 +230,8 @@ module.exports = (comment) ->
                     # Queue: Process individual item
                     q = async.queue do
                         (item, done) ~>
-                            process-individual-item.call @, item, done
+                            set-timeout ~>
+                                process-individual-item.call @, item, done
                         50 # 50 items at a time
                             #   because we don't want to wait
                             #   about an hour for each page
@@ -279,6 +285,7 @@ module.exports = (comment) ->
                             type: 'updates'
                             date: new Date
                             item: item
+                        delete item
 
                 (err) ~>
                     if err is not "OKAY"
@@ -312,15 +319,19 @@ module.exports = (comment) ->
                         stage: "updates:cleanup"
                         fatal: true
 
-                    @emit 'update-done', new UpdateDoneInfo do
-                        type: 'updates'
-                        date: new Date
-                        comment: comment
-                        changed: @stats.changed
-                        deleted: @stats.deleted
+                    if not continuing
+                        @emit 'update-done', new UpdateDoneInfo do
+                            type: 'updates'
+                            date: new Date
+                            comment: comment
+                            changed: @stats.changed
+                            deleted: @stats.deleted
 
-                    debug "selecting 'updates' updater, 1 hour delay"
-                    @updates-done!
+                    if not continuing
+                        debug "selecting 'updates' updater, 5 minute delay"
+                        @updates-done!
+                    if continuing
+                        @updates-done yes
 
     ], (err) ~>
         throw err
