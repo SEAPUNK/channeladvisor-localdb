@@ -129,7 +129,7 @@ class CALDB extends EventEmitter
         @run-updater no, ''
 
     updates-done: (immediate) ->
-        timer = 60*5 # 5 minutes
+        timer = 1000*60*10 # 10 minutes
         if immediate then timer = 0
 
         set-timeout do
