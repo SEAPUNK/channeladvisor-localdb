@@ -15,10 +15,10 @@ export select-incomplete-catalog-run = """
                 `updater` = 'catalog'
             AND
                 `event` = 'done'
-            ORDER BY `date` DESC
+            ORDER BY `id` DESC, `date` DESC
             LIMIT 1
         ), '1500-01-01')
-    ORDER BY `date` DESC
+    ORDER BY `id` DESC, `date` DESC
     LIMIT 1
 """
 
@@ -39,10 +39,10 @@ export select-last-catalog-update-progress = """
                 `updater` = 'catalog'
             AND
                 `event` = 'done'
-            ORDER BY `date` DESC
+            ORDER BY `id` DESC, `date` DESC
             LIMIT 1
         ), '1500-01-01')
-    ORDER BY `date` DESC
+    ORDER BY `id` DESC, `date` DESC
     LIMIT 1
 """
 
@@ -53,7 +53,7 @@ export select-last-updates-checkpoint = """
         `updater` = 'updates'
     AND
         `event` = 'checkpoint'
-    ORDER BY `date` DESC
+    ORDER BY `id` DESC, `date` DESC
     LIMIT 1
 """
 
@@ -74,10 +74,10 @@ export select-last-incomplete-updates-progress = """
                 `updater` = 'updates'
             AND
                 `event` = 'done'
-            ORDER BY `date` DESC
+            ORDER BY `id` DESC, `date` DESC
             LIMIT 1
         ), '1500-01-01')
-    ORDER BY `date` DESC
+    ORDER BY `id` DESC, `date` DESC
     LIMIT 1
 """
 
@@ -98,9 +98,9 @@ export select-last-incomplete-updates-start = """
                 `updater` = 'updates'
             AND
                 `event` = 'done'
-            ORDER BY `date` DESC
+            ORDER BY `id` DESC, `date` DESC
             LIMIT 1
         ), '1500-01-01')
-    ORDER BY `date` DESC
+    ORDER BY `id` DESC, `date` DESC
     LIMIT 1
 """
