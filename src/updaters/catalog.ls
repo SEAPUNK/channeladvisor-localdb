@@ -299,25 +299,25 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                         # Up the counter
                         @stats.changed++
 
-                        ###
-                        # Get the item again,
-                        #   but with associations eager-loaded
-                        err, item <~ @unpromise @models.InventoryItem.findOne do
-                            where:
-                                Sku: item.Sku
-                            include: [
-                                * model: @models.InventoryItemAttribute
-                                  as: "Attributes"
-                                * model: @models.InventoryItemPrice
-                                  as: "Price"
-                                * model: @models.InventoryItemQuantity
-                                  as: "Quantity"
-                            ]
+                        # ###
+                        # # Get the item again,
+                        # #   but with associations eager-loaded
+                        # err, item <~ @unpromise @models.InventoryItem.findOne do
+                        #     where:
+                        #         Sku: item.Sku
+                        #     include: [
+                        #         * model: @models.InventoryItemAttribute
+                        #           as: "Attributes"
+                        #         * model: @models.InventoryItemPrice
+                        #           as: "Price"
+                        #         * model: @models.InventoryItemQuantity
+                        #           as: "Quantity"
+                        #     ]
 
-                        if err
-                            debug "could not re-fetch the item"
-                            q.kill!
-                            return callback err
+                        # if err
+                        #     debug "could not re-fetch the item"
+                        #     q.kill!
+                        #     return callback err
 
                         ###
                         # Emit item-update
@@ -325,7 +325,6 @@ module.exports = (comment, date-to-fetch-to, force = no) ->
                         @emit 'item-update', new ItemUpdateInfo do
                             type: 'catalog'
                             date: new Date
-                            item: item
 
                 (err) ~>
                     if err is not "OKAY"

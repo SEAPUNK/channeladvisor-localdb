@@ -53,7 +53,6 @@ class GenericUpdateInfo extends UpdateContinueInfo
 export class ItemUpdateInfo
         @type
         @date
-        @item
 
 
 export class UpdatesUpdateInfo extends GenericUpdateInfo

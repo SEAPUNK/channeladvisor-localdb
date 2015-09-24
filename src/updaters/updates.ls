@@ -256,27 +256,27 @@ module.exports = (comment) ->
                         # Up the counter
                         @stats.changed++
 
-                        ###
-                        # Get the item again,
-                        #   but with associations eager-loaded
-                        err, item <~ @unpromise @models.InventoryItem.findOne do
-                            where:
-                                Sku: item.Sku
-                            include: [
-                                * model: @models.InventoryItemAttribute
-                                  as: "Attributes"
-                                * model: @models.InventoryItemPrice
-                                  as: "Price"
-                                * model: @models.InventoryItemQuantity
-                                  as: "Quantity"
-                            ]
+                        # ###
+                        # # Get the item again,
+                        # #   but with associations eager-loaded
+                        # err, item <~ @unpromise @models.InventoryItem.findOne do
+                        #     where:
+                        #         Sku: item.Sku
+                        #     include: [
+                        #         * model: @models.InventoryItemAttribute
+                        #           as: "Attributes"
+                        #         * model: @models.InventoryItemPrice
+                        #           as: "Price"
+                        #         * model: @models.InventoryItemQuantity
+                        #           as: "Quantity"
+                        #     ]
 
-                        if err
-                            debug "could not re-fetch the item"
-                            q.kill!
-                            try
-                                return callback err
-                            catch e
+                        # if err
+                        #     debug "could not re-fetch the item"
+                        #     q.kill!
+                        #     try
+                        #         return callback err
+                        #     catch e
 
                         ###
                         # Emit item-update
@@ -284,8 +284,6 @@ module.exports = (comment) ->
                         @emit 'item-update', new ItemUpdateInfo do
                             type: 'updates'
                             date: new Date
-                            item: item
-                        item = null
 
                 (err) ~>
                     if err is not "OKAY"
