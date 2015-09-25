@@ -376,13 +376,17 @@ create-item = (item-data, callback) ->
     if err then return callback err
 
     ###
-    # Create InventoryItemPrice association
-    err <~ @unpromise item.createPrice price-data
+    # Update InventoryItemPrice association
+    err, price <~ @unpromise item.getPrice
+    if err then return callback err
+    err <~ @unpromise price.update price-data
     if err then return callback err
 
     ###
-    # Create InventoryItemQuantity association
-    err <~ @unpromise item.createQuantity quantity-data
+    # Update InventoryItemQuantity association
+    err, quantity <~ @unpromise item.getQuantity quantity-data
+    if err then return callback err
+    err <~ @unpromise quantity.update quantity-data
     if err then return callback err
 
     return callback null, item
@@ -417,14 +421,29 @@ set-item-attributes = (item, callback) ->
 
     ###
     # Create queue
-    q = async.queue (attribute, done) ~>
-        ###
-        # Process queue
-        err <~ @unpromise item.createAttribute attribute
-        if err
+    q = async.queue (attr, done) ~>
+        _stop = (err) ->
             q.kill!
             return callback err
-        done!
+
+        ###
+        # Process queue
+        err, attributes <~ @unpromise item.getAttributes do
+            where:
+                Name: attr.Name
+        if err return _stop err
+
+        if attributes.length is 1
+            attribute = attributes[0]
+            err <~ @unpromise attribute.update attr
+            if err then return _stop err
+            return done!
+        else if not attributes.length
+            err <~ @unpromise item.createAttribute attr
+            if err then return _stop err
+            return done!
+        else
+            return _stop new Error "Found more than one attribute for an item with the same name!"
 
     q.drain = ~>
         callback null, item

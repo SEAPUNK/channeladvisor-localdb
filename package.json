@@ -1,11 +1,11 @@
 {
   "name": "channeladvisor-localdb",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "library that keeps the local inventory database updated",
   "main": "lib/index.js",
   "scripts": {
     "prepublish": "grunt build",
-    "test": "mocha --compilers ls:livescript"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
@@ -18,14 +18,10 @@
   },
   "homepage": "https://github.com/SEAPUNK/channeladvisor-localdb#readme",
   "devDependencies": {
-    "chai": "^3.2.0",
     "grunt": "^0.4.5",
     "grunt-contrib-clean": "^0.6.0",
     "grunt-livescript": "^0.5.4",
-    "grunt-mocha-test": "^0.12.7",
-    "livescript": "^1.4.0",
-    "mocha": "^2.2.5",
-    "sinon": "^1.16.1"
+    "livescript": "^1.4.0"
   },
   "dependencies": {
     "async": "^1.4.2",
