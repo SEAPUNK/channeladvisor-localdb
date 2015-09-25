@@ -398,7 +398,7 @@ create-item = (item-data, callback) ->
     create-price = (callback) ~>
         ###
         # Create or update InventoryItemPrice association
-        err, price <~ @unpromise item.getPrice
+        err, price <~ @unpromise item.getPrice!
         if err then return callback err
         if not price
             err <~ @unpromise item.createPrice price-data
@@ -410,7 +410,7 @@ create-item = (item-data, callback) ->
     create-quantity = (callback) ~>
         ###
         # Create or update InventoryItemQuantity association
-        err, quantity <~ @unpromise item.getQuantity
+        err, quantity <~ @unpromise item.getQuantity!
         if err then return callback err
         if not quantity
             err <~ @unpromise item.createQuantity quantity-data
