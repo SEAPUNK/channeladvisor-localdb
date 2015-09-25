@@ -431,7 +431,7 @@ set-item-attributes = (item, callback) ->
         err, attributes <~ @unpromise item.getAttributes do
             where:
                 Name: attr.Name
-        if err return _stop err
+        if err then return _stop err
 
         if attributes.length is 1
             attribute = attributes[0]
