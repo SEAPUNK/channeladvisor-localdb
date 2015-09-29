@@ -60,7 +60,7 @@ start-fetching = (type, page, current-page, callback) ->
             d "STOP CALLED, QUITTING"
             return
 
-        d "fetching page #{current-page++}"
+        d "fetching page #{current-page}"
 
         d "inserting #{type}:progress"
         err <~ @unpromise @models.RunLog.create do
@@ -116,6 +116,7 @@ start-fetching = (type, page, current-page, callback) ->
         q.drain = ~>
             d "done processing items, \
                 fetching next page"
+            current-page++
             callback!
 
         items-left-to-fetch = data.length
