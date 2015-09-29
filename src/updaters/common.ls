@@ -39,7 +39,6 @@ restart-timer = ->
         TIMER_THIS.emit 'error', new ErrorInfo do
             fatal: yes
             error: new Error "CALDB fetch timeout; no response for 10 minutes"
-            error: err
             message: "CALDB fetch timeout; no response for 10 minutes"
             stage: "fetch"
         TIMER_THIS.stop "CALDB fetch timeout"
