@@ -1,10 +1,11 @@
 require! <[
-    winston mysql
+    mysql debug
     ./updaters ./queries ./models
 ]>
 
 {EventEmitter} = require 'events'
 Sequelize = require 'sequelize'
+
 {
     UpdatesUpdateInfo
     CatalogUpdateInfo
@@ -17,11 +18,15 @@ Sequelize = require 'sequelize'
 
 # unpromise
 unpromise = (promise, callback, spread = false) ->
+    d = debug 'CALDB:unpromise'
+    d "unpromising function (spread: #{spread})"
     fnc = if spread then promise~spread else promise~then
     fnc do
         ->
+            d "unpromise call success"
             callback.apply @, [null].concat arguments
         ->
+            d "unpromise call fail"
             callback ...
 
 unpromise.spread = (promise, callback) ->
@@ -29,66 +34,58 @@ unpromise.spread = (promise, callback) ->
 
 class CALDB extends EventEmitter
     ({@account, @dburi, @client, @logger}) ->
+        d = debug 'CALDB:construct'
+        d 'constructing'
         super!
         @initialized = false
-        @set-logger!
         @reset-stats!
-        @debugger = new Debugger do
-            log: @logger~debug
-            namespace: 'caldb'
-        @debug = @debugger.debug
         @models = models
         @unpromise = unpromise
 
     # errout = "error out"
     errout: ->
+        d = debug "CALDB:errout"
+        d 'sending error'
         it.fatal ?= true
         it.error ?= new Error it.message
         @emit 'error', new ErrorInfo it
 
-    set-logger: ->
-        @logger ?= @make-dummy-logger!
-
-    get-logger: -> @logger
-
-    make-dummy-logger: ->
-        new (winston.Logger) do
-            transports: []
-
     reset-stats: ->
+        d = debug "CALDB:reset-stats"
+        d 'resetting stats'
         @stats =
             added: 0
             changed: 0
             deleted: 0
 
-    start: (manual, comment, dry-run) ->
-        debug = @debug.push "start"
-        debug "called"
+    start: (manual, comment, noop) ->
+        d = debug 'CALDB:start'
+        d 'starting'
 
         if @initialized
-            debug "already initialized, quitting"
+            d "already initialized, quitting"
             return
+        @initialized = yes
 
         <~ setTimeout
         <~ @run-checks
         <~ @prepare-updater
-        if not dry-run
-            require('debug')('CALDB')('not a dry run')
+        if not noop
+            d 'not a noop, running updater'
             @run-updater manual, comment
         else
-            require('debug')('CALDB')('dry run, not actually updating')
-            @emit 'dry-ready'
+            d 'noop, emitting ready'
+            @emit 'ready'
 
     run-checks: (callback) ->
-        debug = @debug.push "run-checks"
-
-        debug "called"
+        d = debug 'CALDB:run-checks'
 
         # Initialize the database, then test the connection/authentication.
-        debug "initializing sequelize, testing"
+        d "initializing sequelize"
         @db = new Sequelize @dburi,
             logging: false
 
+        d "authenticating to DB"
         err <~ @unpromise @db.authenticate!
         if err then return @errout do
             error: err
@@ -96,7 +93,7 @@ class CALDB extends EventEmitter
             stage: "run-checks"
 
         # Then, check the client. Is it initialized?
-        debug "check client init"
+        d "check client init"
         if not @client.initialized then return @errout do
             message: "channeladvisor2 client \
                 non-existent/non-initialized"
@@ -105,19 +102,15 @@ class CALDB extends EventEmitter
         callback!
 
     prepare-updater: (callback) ->
-        debug = @debug.push "prepare-updater"
-
-        debug "called"
+        d = debug "CALDB:prepare-updater"
 
         # Prepare Sequelize.
+        d "defining models"
         models.define.call @
 
-        debug "defined models"
-
         # Sync database.
+        d "syncing database"
         err <~ @unpromise @db.sync force: false
-
-        debug "db sync done"
         if err then return @errout do
             error: err
             message: "could not sync sequelize to db"
@@ -126,25 +119,30 @@ class CALDB extends EventEmitter
         callback!
 
     catalog-done: ->
+        d = debug "CALDB:catalog-done"
+        d "catalog updater done, running updates updater"
         @run-updater no, ''
 
     updates-done: (immediate) ->
+        d = debug "CALDB:updates-done"
+        d "updates updater done, requeuing (immedate: #{immediate})"
         timer = 1000*60*10 # 10 minutes
         if immediate then timer = 0
 
         set-timeout do
             ~>
+                d "starting updates updater"
                 @run-updater no, ''
             timer
 
     run-updater: (manual, comment) ->
-        debug = @debug.push "run-updater"
+        d = debug "CALDB:run-updater"
 
-        debug "called"
+        d "determining updater"
 
         # Check to see if we're doing a "manual" catalog update.
         if manual is yes
-            debug "is forced, calling catalog"
+            d "is forced, calling catalog"
             return set-timeout ~>
                 updaters.catalog.call @, comment, , manual
 
@@ -157,8 +155,8 @@ class CALDB extends EventEmitter
             message: "could not run database query, \
                 at @models.RunLog.count()"
             stage: "determine-updater"
-        if count.0 is 0
-            debug "nothing in the run log, calling catalog"
+        if count[0] is 0
+            d "nothing in the run log, calling catalog"
             return set-timeout ~>
                 updaters.catalog.call @, comment
 
@@ -172,13 +170,13 @@ class CALDB extends EventEmitter
                     at run-updater,select-incomplete-catalog-run"
                 stage: "determine-updater"
         if runlog.length is not 0 and runlog[0].date
-            debug "incomplete catalog update, calling catalog"
+            d "incomplete catalog update, calling catalog"
             return set-timeout ~>
                 updaters.catalog.call @, comment, runlog[0].date
 
         # Else, we can just run 'updates'.
         return set-timeout ~>
-            debug "all checks seem to have passed, calling updates"
+            d "all checks seem to have passed, calling updates"
             updaters.updates.call @, comment
 
     expose-models: ->
@@ -187,22 +185,7 @@ class CALDB extends EventEmitter
     expose-sequelize: ->
         return @db
 
+    stop: ->
+        @_stop = yes
+
 module.exports = CALDB
-
-Debugger = ({@log, @namespace, @previous = null}) !->
-    this$ = this
-
-    this.debug = (message) ->
-        this$.log this$.namespace + ": " + message
-
-    this.debug.pop = ->
-        if not this$.previous?
-            throw new Error "no more namespaces to revert to"
-        return this$.previous.debug
-
-    this.debug.push = (subnamespace) ->
-        dbg = new Debugger do
-            log: this$.log
-            namespace: "#{this$.namespace}/#{subnamespace}"
-            previous: this$
-        return dbg.debug

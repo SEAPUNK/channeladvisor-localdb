@@ -1,6 +1,8 @@
 require! <[
     ../queries
     async
+    debug
+    ./common
 ]>
 
 {inspect} = require 'util'
@@ -17,8 +19,8 @@ require! <[
 } = require '../info-objects/'
 
 module.exports = (comment) ->
-    debug = @debug.push "updates"
-    debug "start"
+    d = debug "CALDB:updater:catalog"
+    d "start"
 
     ###
     # Reset stats
@@ -30,7 +32,7 @@ module.exports = (comment) ->
 
     ###
     # Fetch checkpoint
-    debug "RunLog.get-last-updates-checkpoint"
+    d "RunLog.get-last-updates-checkpoint"
     err, runlog <~ @models.RunLog.get-last-updates-checkpoint
     if err
         return @errout do
@@ -48,7 +50,7 @@ module.exports = (comment) ->
 
     ###
     # Fetch resume data, pt.1
-    debug "RunLog.get-last-incomplete-updates-start"
+    d "RunLog.get-last-incomplete-updates-start"
     err, runlog <~ @models.RunLog.get-last-incomplete-updates-start
     if err
         return @errout do
@@ -63,7 +65,7 @@ module.exports = (comment) ->
 
     ###
     # Fetch resume data, pt.2
-    debug "RunLog.get-last-incomplete-updates-progress"
+    d "RunLog.get-last-incomplete-updates-progress"
     err, runlog <~ @models.RunLog.get-last-incomplete-updates-progress
     if err
         return @errout do
@@ -98,7 +100,7 @@ module.exports = (comment) ->
     if not date-to-fetch-to?
         date-to-fetch-to := new Date
     else
-        debug "continuing updates, #{date-to-fetch-to}"
+        d "continuing updates, #{date-to-fetch-to}"
         continuing := true
         comment := comment + "Continuing 'updates' update last \
             run on #{date-to-fetch-to.toGMTString!} from page #{current-page}."
@@ -111,7 +113,7 @@ module.exports = (comment) ->
         ###
         # Insert updates:start
         (next) ~>
-            debug "insert updates:start"
+            d "insert updates:start"
             err <~ @unpromise @models.RunLog.create do
                 updater: 'updates'
                 event: 'start'
@@ -129,7 +131,7 @@ module.exports = (comment) ->
         # Emit update-start
         (next) ~>
             # emit the update-start event, then start fetching.
-            debug "emit update-start"
+            d "emit update-start"
             @emit 'update-start', new UpdateStartInfo do
                 type: 'updates'
                 date: start-date
@@ -163,288 +165,62 @@ module.exports = (comment) ->
                 void
 
             page = pages!
-            debug "initialized pages generator"
+            d "initialized pages generator"
             next null, page
 
         ###
         # Page fetching
         # TODO: Make function that checks errors, and handles them
-        # TODO: .stop()
+
         (page, next) ~>
+            start = common.get @
 
-            async.forever do
-                ###
-                # Fetch next page
-                (callback) ~>
-                    debug "fetching page #{current-page}"
+            handle-end = (err) ~>
+                if err is not "OKAY"
+                    d "err is NOT 'OKAY'"
+                    return @emit 'error', new ErrorInfo do
+                        error: err
+                        message: "could not process/query items"
+                        stage: "updates:get-next-page"
+                        fatal: true
 
-                    ###
-                    # Insert updates:progress
-                    debug "inserting updates:progress"
-                    err <~ @unpromise @models.RunLog.create do
-                        updater: 'updates'
-                        event: 'progress'
-                        page-id: current-page
+                d "cleaning up; \
+                    pushing updates:checkpoint and updates:done"
 
-                    if err then return callback err
+                err <~ @unpromise @models.RunLog.create do
+                    updater: 'updates'
+                    event: 'checkpoint'
 
-                    ###
-                    # Emit update-progress
-                    @emit 'update-progress', new UpdateProgressInfo do
+                if err then return @emit 'error', new ErrorInfo do
+                    error: err
+                    message: "could not push updates:checkpoint"
+                    stage: "updates:cleanup"
+                    fatal: true
+
+                err <~ @unpromise @models.RunLog.create do
+                    updater: 'updates'
+                    event: 'done'
+
+                if err then return @emit 'error', new ErrorInfo do
+                    error: err
+                    message: "could not push updates:done"
+                    stage: "updates:cleanup"
+                    fatal: true
+
+                if not continuing
+                    @emit 'update-done', new UpdateDoneInfo do
                         type: 'updates'
                         date: new Date
-                        date-started: start-date
-                        comment: ''
-                        current-page: current-page
+                        comment: comment
                         changed: @stats.changed
                         deleted: @stats.deleted
 
-                    ###
-                    # Call API for next page
-                    err, result <~ fetch page.next!.value
-                    if err then return callback err
-                    debug "fetched page"
+                if not continuing
+                    d "selecting 'updates' updater, 5 minute delay"
+                    @updates-done!
+                if continuing
+                    @updates-done yes
 
-                    ###
-                    # Process API response
-                    result = result.GetFilteredInventoryItemListResult # ugh
-
-                    # Check if the message code is 0.
-                    #   If it's anything other than that, then we need to throw
-                    #   an error.
-                    if result.MessageCode is not 0
-                        return callback new Error "MessageCode is not 0, \
-                            but is #{result.MessageCode} with message: \
-                            #{result.Message}"
-
-                    data = result.{}ResultData.[]InventoryItemResponse # u g h
-                    result = null
-
-                    ###
-                    # Check if there is any more data
-                    if data.length is 0
-                        debug "all items fetched"
-                        return callback "OKAY"
-
-                    ###
-                    # Queue: Process individual item
-                    q = async.queue do
-                        (item, done) ~>
-                            set-timeout ~>
-                                process-individual-item.call @, item, done
-                        100 # 100 items at a time
-                            #   because we don't want to wait
-                            #   about an hour for each page
-
-                    q.drain = ~>
-                        debug "done processing items, \
-                            fetching next page"
-                        callback!
-
-                    ###
-                    # Post-process each item
-                    items-left-to-fetch = data.length
-                    q.push data, (err, item) ~>
-                        debug = (@debug.push "updates").push "queue"
-                        if err
-                            debug "got error from an item during processing"
-                            q.kill!
-                            try
-                                return callback err
-                            catch e
-                        ###
-                        # Up the counter
-                        @stats.changed++
-
-                        # ###
-                        # # Get the item again,
-                        # #   but with associations eager-loaded
-                        # err, item <~ @unpromise @models.InventoryItem.findOne do
-                        #     where:
-                        #         Sku: item.Sku
-                        #     include: [
-                        #         * model: @models.InventoryItemAttribute
-                        #           as: "Attributes"
-                        #         * model: @models.InventoryItemPrice
-                        #           as: "Price"
-                        #         * model: @models.InventoryItemQuantity
-                        #           as: "Quantity"
-                        #     ]
-
-                        # if err
-                        #     debug "could not re-fetch the item"
-                        #     q.kill!
-                        #     try
-                        #         return callback err
-                        #     catch e
-
-                        ###
-                        # Emit item-update
-                        debug "item done fetching, #{--items-left-to-fetch} left"
-                        @emit 'item-update', new ItemUpdateInfo do
-                            type: 'updates'
-                            date: new Date
-
-                (err) ~>
-                    if err is not "OKAY"
-                        debug "err is NOT 'OKAY'"
-                        return @emit 'error', new ErrorInfo do
-                            error: err
-                            message: "could not process/query items"
-                            stage: "updates:get-next-page"
-                            fatal: true
-
-                    debug "cleaning up; \
-                        pushing updates:checkpoint and updates:done"
-
-                    err <~ @unpromise @models.RunLog.create do
-                        updater: 'updates'
-                        event: 'checkpoint'
-
-                    if err then return @emit 'error', new ErrorInfo do
-                        error: err
-                        message: "could not push updates:checkpoint"
-                        stage: "updates:cleanup"
-                        fatal: true
-
-                    err <~ @unpromise @models.RunLog.create do
-                        updater: 'updates'
-                        event: 'done'
-
-                    if err then return @emit 'error', new ErrorInfo do
-                        error: err
-                        message: "could not push updates:done"
-                        stage: "updates:cleanup"
-                        fatal: true
-
-                    if not continuing
-                        @emit 'update-done', new UpdateDoneInfo do
-                            type: 'updates'
-                            date: new Date
-                            comment: comment
-                            changed: @stats.changed
-                            deleted: @stats.deleted
-
-                    if not continuing
-                        debug "selecting 'updates' updater, 5 minute delay"
-                        @updates-done!
-                    if continuing
-                        @updates-done yes
-
+            start "updates", page, current-page, handle-end
     ], (err) ~>
         throw err
-
-
-process-individual-item = (item-data, callback) ->
-    debug = (@debug.push "updates").push "process-individual-item"
-
-    ###
-    # Insert base data
-    debug "inserting data"
-    err, item <~ create-item.call @, item-data
-    if err then return callback err
-
-    ###
-    # Insert attribute data
-    debug "inserting attributes"
-    err, item <~ set-item-attributes.call @, item
-    if err then return callback err
-
-    ###
-    # Callback
-    debug "processed item"
-    callback null, item
-
-create-item = (item-data, callback) ->
-    ###
-    # Separate data
-    quantity-data = delete item-data.Quantity
-    price-data = delete item-data.PriceInfo
-
-    ###
-    # Initialize or find the current inventory item
-    err, item <~ @unpromise.spread @models.InventoryItem.find-or-create do
-        where:
-            Sku: delete item-data.Sku
-    if err then return callback err
-
-    item = item[0]
-
-    ###
-    # Update the item with the data
-    err <~ @unpromise item.update item-data
-    if err then return callback err
-
-    ###
-    # Update InventoryItemPrice association
-    err, price <~ @unpromise item.getPrice!
-    if err then return callback err
-    err <~ @unpromise price[0].update price-data
-    if err then return callback err
-
-    ###
-    # Update InventoryItemQuantity association
-    err, quantity <~ @unpromise item.getQuantity!
-    if err then return callback err
-    err <~ @unpromise quantity[0].update quantity-data
-    if err then return callback err
-
-    return callback null, item
-
-set-item-attributes = (item, callback) ->
-    debug = (@debug.push "updates").push "set-item-attributes"
-
-    debug "making api call"
-    ###
-    # Make the API call for the item
-    fetch = @client.InventoryService.GetInventoryItemAttributeList
-
-    err, result <~ fetch do
-        accountID: @account
-        sku: item.Sku
-    if err then return callback err
-
-    debug "got api response"
-    ###
-    # Process API response
-    result = result.GetInventoryItemAttributeListResult # ugh
-
-    # Check if the message code is 0.
-    #   If it's anything other than that, then we need to throw
-    #   an error.
-    if result.MessageCode is not 0
-        return callback new Error "MessageCode is not 0, \
-            but is #{result.MessageCode} with message: \
-            #{result.Message}"
-
-    data = result.ResultData.AttributeInfo
-
-    ###
-    # Create queue
-    q = async.queue (attr, done) ~>
-        _stop = (err) ->
-            q.kill!
-            return callback err
-
-        ###
-        # Process queue
-        err, attributes <~ @unpromise item.getAttributes do
-            where:
-                Name: attr.Name
-        if err then return _stop err
-
-        if attributes.length is 1
-            attribute = attributes[0]
-            err <~ @unpromise attribute.update attr
-            if err then return _stop err
-            return done!
-        else if not attributes.length
-            err <~ @unpromise item.createAttribute attr
-            if err then return _stop err
-            return done!
-        else
-            return _stop new Error "Found more than one attribute for an item with the same name!"
-
-    q.drain = ~>
-        callback null, item
-    q.push data

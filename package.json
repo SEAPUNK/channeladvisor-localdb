@@ -1,6 +1,6 @@
 {
   "name": "channeladvisor-localdb",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "description": "library that keeps the local inventory database updated",
   "main": "lib/index.js",
   "scripts": {
