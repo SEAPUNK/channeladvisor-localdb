@@ -29,7 +29,7 @@ restart-timer = ->
         clear-timeout TIMER_ID
     catch e
     TIMER_ID := set-timeout kill-caldb, 1000*60*10 # 10 minutes
-    d "started or restarted timer, id #{TIMER_ID}"
+    d "started or restarted timer"
 
     kill-caldb = ->
         if TIMER_THIS._stop
@@ -279,6 +279,7 @@ set-item-attributes = (item, callback) ->
                 Name: attr.Name
         if err then return _stop err
 
+        attributes = attributes[0]
         if attributes.length is 1
             attribute = attributes[0]
             err <~ @unpromise attribute.update attr
