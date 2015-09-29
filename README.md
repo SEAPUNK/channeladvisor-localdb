@@ -3,9 +3,7 @@ channeladvisor-localdb
 
 library to create a local database of inventory items from channeladvisor
 
-**warning:** could use a lot of memory (~1GB), depending on how complex or
-full of data your inventory items are. i suggest that you run this library in
-its [server wrapper](https://github.com/seapunk/caldb-d)
+i suggest that you run this library in its [server wrapper](https://github.com/seapunk/caldb-d)
 
 install
 ---
