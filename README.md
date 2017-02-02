@@ -1,6 +1,8 @@
 channeladvisor-localdb
 ===
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/xbpf/channeladvisor-localdb.svg)](https://greenkeeper.io/)
+
 library to create a local database of inventory items from channeladvisor
 
 i suggest that you run this library in its [server wrapper](https://github.com/seapunk/caldb-d)
